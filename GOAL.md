@@ -23,8 +23,8 @@ A task is done only when all of these hold:
 3. Its failure path was seen at least once: a state it cannot handle ends as
    `unknown`/`blocked` with frames, never as `passed`, and the game is left on a
    known screen (world or menu).
-4. A task that spends anything (调度券, 理智, 信用点, materials, gifts) has Max's yes
-   for its first real spend recorded in the ledger, and obeys the caps he set.
+4. A task that spends anything obeys the spending policy below; a run that would
+   break it stops as `blocked` before the spend.
 
 A task whose state is already consumed today (daily reset 04:00 server time, weekly
 reset Monday 04:00) waits in the ledger with its next verifiable time; it is not done.
@@ -79,7 +79,7 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 - Other platforms' launch/close: AndroidOpenGame, CloseGame, CloseGamePC,
   LaunchGameLinux (E1 replaces them), AccountSwitch (cloud login differs).
 - Dev/test and expired: DevTest, AdbAutoFightTest, WebEvent202605.
-- Proposed, pending Max: RealTimeTask (real-time combat assist), PuzzleSolver and
+- Proposed by the agent, not objected to by Max (2026-10-22): RealTimeTask (real-time combat assist), PuzzleSolver and
   AeroSalvage (minigames), BatchAddFriends (risk control), ImportBluePrints,
   IntelArchive (external site).
 
@@ -87,8 +87,11 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 
 - No local test/check suites; verification is the running product. Corpus replay
   belongs in CI, and adding a CI workflow needs Max's explicit ask.
-- In-game spending: stop before each spending task's first real spend and get Max's
-  yes; afterwards stay within the caps recorded in the ledger.
+- In-game spending (Max, 2026-10-22): tasks may spend 调度券, 理智, 信用点, materials
+  and gifts without asking. Never spend 衍质源石 or 嵌晶玉: the input layer refuses
+  to confirm any dialog or purchase that shows either, and the task ends `blocked`.
+- 据点交易 (selling goods for 调度券) keeps at least 100 of every goods item; it
+  sells only the amount above 100.
 - Never drag item contents (warehouse/backpack); never delete, decompose or sell
   anything Max has not configured.
 - If Max plays and consumes a daily state, that task waits for the next reset.
