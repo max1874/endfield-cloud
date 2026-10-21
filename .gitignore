@@ -1,0 +1,6 @@
+/target/
+/dist/
+/gen/
+/.toolchain/
+/artifacts/
+.DS_Store

@@ -1,0 +1,19 @@
+[package]
+name = "endfield-cloud-prototype"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[build-dependencies]
+cc = "1"
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "=2.12.4", features = [] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.dev]
+debug = 1
