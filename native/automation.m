@@ -122,7 +122,18 @@ static char AutomationKey;
     }
     return NO;
 }
+- (BOOL)texts:(NSArray *)texts match:(NSRegularExpression *)pattern top:(double)top bottom:(double)bottom {
+    for (NSDictionary *item in texts) {
+        double y = [item[@"y"] doubleValue];
+        NSString *text = item[@"text"];
+        if (y >= top && y <= bottom && [pattern firstMatchInString:text options:0 range:NSMakeRange(0, text.length)]) return YES;
+    }
+    return NO;
+}
 - (NSString *)classify:(NSArray *)texts {
+    static NSRegularExpression *uidDigits;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ uidDigits = [NSRegularExpression regularExpressionWithPattern:@"\\d{9,}" options:0 error:nil]; });
     NSUInteger menu = 0;
     for (NSString *word in @[@"干员", @"行动手册", @"好友", @"贵重品库", @"采购中心"])
         menu += [self texts:texts contain:word top:0 bottom:1];
@@ -134,7 +145,8 @@ static char AutomationKey;
     // The top-right key hints (F7/F8/ESC) are too small for OCR to read reliably
     // over a changing background. Loading screens also show the UID, so exclude them,
     // and a menu fading in or out shows a few menu labels before it is fully drawn.
-    if (menu == 0 && [self texts:texts contain:@"UID" top:0.85 bottom:1] &&
+    // At 1920x1080 the "UID" label itself often reads as "ND"/"JD", so anchor on its digits.
+    if (menu == 0 && [self texts:texts match:uidDigits top:0.85 bottom:1] &&
         ![self texts:texts contain:@"LOADING" top:0 bottom:1]) return @"gameplay";
     return @"unknown";
 }
@@ -198,8 +210,9 @@ static char AutomationKey;
             [self act:@"window.__endfieldAutomation.escape()" next:1 generation:generation];
         } else if (self.stage == 1 && [state isEqualToString:@"menu"]) {
             // This prototype supports the current PC menu layout only. Never click
-            // until the menu's independent text anchors have been observed.
-            [self act:@"window.__endfieldAutomation.click(0.172, 0.115)" next:2 generation:generation];
+            // until the menu's independent text anchors have been observed. The settings
+            // gear position is for the locked 1280x720 viewport (see native/viewport.m).
+            [self act:@"window.__endfieldAutomation.click(0.173, 0.096)" next:2 generation:generation];
         } else if (self.stage == 2 && [state isEqualToString:@"settings"]) {
             [self act:@"window.__endfieldAutomation.escape()" next:3 generation:generation];
         } else if (self.stage == 3 && [state isEqualToString:@"menu"]) {

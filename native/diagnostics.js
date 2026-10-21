@@ -77,6 +77,12 @@
       }
     };
   }
+  // The stream size follows the viewport; log every change so layout drift is visible.
+  document.addEventListener("resize", event => {
+    const video = event.target;
+    if (!(video instanceof HTMLVideoElement)) return;
+    post(`${frame} video_size=${video.videoWidth}x${video.videoHeight} viewport=${innerWidth}x${innerHeight}@${devicePixelRatio}`);
+  }, true);
   // Worker exceptions surface only on the Worker object, never on window.
   const NativeWorker = window.Worker;
   if (NativeWorker) {

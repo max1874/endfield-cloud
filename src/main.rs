@@ -10,7 +10,49 @@ extern "C" {
     fn endfield_install_pointer_lock(webview: *mut std::ffi::c_void);
     fn endfield_keep_running_when_covered(webview: *mut std::ffi::c_void);
     fn endfield_configure_webrtc(webview: *mut std::ffi::c_void);
+    fn endfield_lock_viewport(webview: *mut std::ffi::c_void);
     fn endfield_automation_action(webview: *mut std::ffi::c_void, action: i32);
+    #[cfg(debug_assertions)]
+    fn endfield_dev_eval(
+        webview: *mut std::ffi::c_void,
+        script: *const std::ffi::c_char,
+        output_path: *const std::ffi::c_char,
+    );
+}
+
+// Debug builds only: scripts dropped into <app data>/dev-inbox/NAME.js run in the game
+// page as an async function body; the result lands in <app data>/dev-outbox/NAME.{json,png}.
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn spawn_dev_inbox(app: AppHandle) -> tauri::Result<()> {
+    let base = app.path().app_data_dir()?;
+    let (inbox, outbox) = (base.join("dev-inbox"), base.join("dev-outbox"));
+    std::fs::create_dir_all(&inbox)?;
+    std::fs::create_dir_all(&outbox)?;
+    eprintln!("dev inbox={}", inbox.display());
+    std::thread::spawn(move || loop {
+        let mut scripts: Vec<_> = std::fs::read_dir(&inbox)
+            .map(|entries| entries.flatten().map(|entry| entry.path()).collect())
+            .unwrap_or_default();
+        scripts.retain(|path| path.extension().is_some_and(|ext| ext == "js"));
+        scripts.sort();
+        for path in scripts {
+            let script = std::fs::read_to_string(&path);
+            let _ = std::fs::remove_file(&path);
+            let (Ok(script), Some(stem)) = (script, path.file_stem()) else { continue };
+            let output = outbox.join(stem);
+            let (Ok(script), Ok(output)) = (
+                std::ffi::CString::new(script),
+                std::ffi::CString::new(output.to_string_lossy().as_bytes()),
+            ) else { continue };
+            if let Some(window) = app.get_webview_window("game") {
+                let _ = window.with_webview(move |webview| unsafe {
+                    endfield_dev_eval(webview.inner(), script.as_ptr(), output.as_ptr());
+                });
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(150));
+    });
+    Ok(())
 }
 
 const CLOUD_URL: &str = "https://endfield.hypergryph.com/cloud";
@@ -30,8 +72,7 @@ fn create_window(
     let popup_app = app.clone();
     let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::External(url))
         .title("云终末地 · Tauri 原型")
-        .inner_size(1280.0, 800.0)
-        .min_inner_size(960.0, 600.0)
+        .inner_size(1280.0, 720.0)
         .disable_drag_drop_handler()
         .on_page_load(|window, payload| {
             let event = match payload.event() {
@@ -76,6 +117,7 @@ fn create_window(
             endfield_install_pointer_lock(webview.inner());
             endfield_keep_running_when_covered(webview.inner());
             endfield_configure_webrtc(webview.inner());
+            endfield_lock_viewport(webview.inner());
         })?;
     }
     Ok(window)
@@ -110,6 +152,8 @@ fn main() {
             menu.append(&Submenu::with_items(app, "自动化", true, &[&capture, &run, &stop])?)?;
             app.set_menu(menu)?;
             create_window(app.handle(), "game", CLOUD_URL.parse()?, None)?;
+            #[cfg(all(target_os = "macos", debug_assertions))]
+            spawn_dev_inbox(app.handle().clone())?;
             Ok(())
         })
         .on_menu_event(|app, event| {

@@ -36,3 +36,36 @@ Recognition templates are captured from our own stream.
 - Server-side conditions that are not our bugs: "上一局数据正在火速处理中" for about
   a minute after a session ends, and occasional "排队超时". Retry; do not treat
   them as client failures.
+- Debug builds poll `~/Library/Application Support/local.endfield.cloud.prototype/dev-inbox/`:
+  `NAME.js` runs in the game page as an async function body and its result lands in
+  `dev-outbox/NAME.json` (or `NAME.png` for a PNG data URL). Use it to drive input
+  and recognition experiments from a shell. Release builds never poll the inbox.
+
+## Coordinate space
+
+The cloud SDK asks the server for a game resolution of the page viewport times
+`devicePixelRatio` and resends it on every resize, so the game's layout follows
+our window. `native/viewport.m` fixes the page viewport at 1280×720 (window not
+resizable); on a 2× display the stream is 1920×1080. Recognition coordinates are
+normalized to that 16:9 frame. Anything that changes the viewport (fullscreen)
+changes the layout; automation must check the viewport before acting.
+
+## Input facts (measured 2026-10-21, synthetic DOM events on `#WelinkGameVideo`)
+
+- Hotkeys (M, B, C, J, F8, Esc) work; the screen starts changing about 200 ms after
+  the key.
+- Clicks work at absolute positions. In-world HUD buttons need Alt held (Alt down,
+  click, Alt up); without Alt the click goes to the camera.
+- `mousemove` is ignored unless `movementX`/`movementY` are non-zero. Hover and
+  drags therefore need real deltas; a drag without them does nothing, and a slider
+  then only jumps to where the press landed.
+- The game cursor takes the event's absolute position. The main menu has a
+  cursor parallax of up to ~50 px: park the cursor at a fixed point (one move with
+  a non-zero delta) before recognizing or clicking positions in it. With the cursor
+  parked, menu layout matched across sessions within 3 px.
+- The mouse wheel reaches the SDK but does not scroll game lists. Scroll by
+  dragging the list's scrollbar. Dragging list content in item UIs (warehouse,
+  backpack) picks up an item and can move it between containers; never drag there.
+- Capture costs at 1920×1080: draw ~0–1 ms, full `getImageData` ~1 ms, full PNG
+  ~30 ms in-page (~45 ms to a native file). Vision OCR: full frame ~130 ms
+  accurate / ~30 ms fast; a small ROI ~40 ms accurate. Prefer ROI OCR.
