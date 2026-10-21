@@ -79,7 +79,7 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 - Other platforms' launch/close: AndroidOpenGame, CloseGame, CloseGamePC,
   LaunchGameLinux (E1 replaces them), AccountSwitch (cloud login differs).
 - Dev/test and expired: DevTest, AdbAutoFightTest, WebEvent202605.
-- Proposed by the agent, not objected to by Max (2026-10-22): RealTimeTask (real-time combat assist), PuzzleSolver and
+- Agreed with Max (2026-10-22): RealTimeTask (real-time combat assist), PuzzleSolver and
   AeroSalvage (minigames), BatchAddFriends (risk control), ImportBluePrints,
   IntelArchive (external site).
 
