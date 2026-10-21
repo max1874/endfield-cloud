@@ -103,6 +103,12 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 | Spike 1 viewport lock | done | `artifacts/acceptance-20261021-viewport/`, commit 919fe19 |
 | Spike 2 input survey | done | `AGENTS.md` "Input facts"; real-input stop unverified |
 | Spike 3 capture/OCR timing | done | `AGENTS.md` "Input facts" |
-| Spike 4 template/number OCR robustness | next | |
-| E1–E5 | not started | |
+| Spike 4 template/number OCR robustness | not started | |
+| Engine core (JS in isolated world, OCR bridge, evidence, runner) | in-app selftest passed | run `20261021-164204-66t1` (title → world → menu → settings → world), screen locked, session already streaming |
+| E1 session start/exit | changed, unverified in engine | DOM presses verified from the page world 2026-10-22 00:40; engine `session.js` never completed a start (displays asleep, see AGENTS.md) |
+| E1 unattended with displays asleep | blocked: needs Max | waking the display during runs is his call |
+| E2 input layer | partial | key, click with deltas, Alt+click, drag implemented; Alt+click and drag not yet exercised through the engine |
+| E3 recognition | partial | world/menu/settings/title/loading fingerprints; ESC-label template; NCC matching and number OCR untested on varied frames |
+| E4 navigation | partial | nav to world from title/menu/settings observed |
+| E5 runner/UI | partial | menu run/stop, per-task evidence, summary; no task options UI, no scheduler |
 | Phase 1–4 tasks | not started | |

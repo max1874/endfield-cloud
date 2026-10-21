@@ -39,10 +39,31 @@ Recognition templates are captured from our own stream.
 - Server-side conditions that are not our bugs: "上一局数据正在火速处理中" for about
   a minute after a session ends, and occasional "排队超时". Retry; do not treat
   them as client failures.
+- Screen lock (2026-10-22): WebKit marks the page hidden while the screen is locked
+  even with occlusion detection off, and the cloud page then refuses to start a
+  session; `native/visibility.js` makes the page read itself as visible. A page
+  instance that has never rendered since launch (displays asleep) gets no
+  animation frames at all, so the home page's start flow stalls: an unattended run
+  needs a display awake. Waking the display is Max's decision (GOAL.md).
 - Debug builds poll `~/Library/Application Support/local.endfield.cloud.prototype/dev-inbox/`:
   `NAME.js` runs in the game page as an async function body and its result lands in
   `dev-outbox/NAME.json` (or `NAME.png` for a PNG data URL). Use it to drive input
   and recognition experiments from a shell. Release builds never poll the inbox.
+
+## Automation engine
+
+- The engine is JavaScript in `native/engine/` (core, screens and navigation,
+  session, runner, `tasks/*.js`), bundled with `templates/*.png` by `build.rs` and
+  injected by `native/engine.m` into its own content world `endfield-engine`. It
+  shares the DOM with the cloud page, so its events reach the SDK, while page
+  scripts cannot reach it. Native code only provides OCR (Vision), evidence
+  storage under `automation/<run>/<task>/` and logging (`engine …` in the runtime log).
+- Menu 自动化 runs a task; Cmd+Shift+. stops it. In debug builds a dev-inbox script
+  that starts with `//world:engine` runs in the engine world, which allows
+  hot-loading a changed engine file before rebuilding.
+- Templates are cropped from our own 1920×1080 frames, never from MaaEnd.
+- Unattended runs: `window.__engine.run(ids, { session: true })` starts the cloud
+  session, runs the tasks and exits the session.
 
 ## Coordinate space
 

@@ -11,7 +11,8 @@ extern "C" {
     fn endfield_keep_running_when_covered(webview: *mut std::ffi::c_void);
     fn endfield_configure_webrtc(webview: *mut std::ffi::c_void);
     fn endfield_lock_viewport(webview: *mut std::ffi::c_void);
-    fn endfield_automation_action(webview: *mut std::ffi::c_void, action: i32);
+    fn endfield_install_engine(webview: *mut std::ffi::c_void, source: *const std::ffi::c_char);
+    fn endfield_engine_command(webview: *mut std::ffi::c_void, command: *const std::ffi::c_char);
     #[cfg(debug_assertions)]
     fn endfield_dev_eval(
         webview: *mut std::ffi::c_void,
@@ -58,6 +59,22 @@ fn spawn_dev_inbox(app: AppHandle) -> tauri::Result<()> {
 const CLOUD_URL: &str = "https://endfield.hypergryph.com/cloud";
 static POPUP_ID: AtomicUsize = AtomicUsize::new(1);
 
+// Tasks offered in the 自动化 menu: (engine task id, menu title).
+const ENGINE_MENU_TASKS: &[(&str, &str)] = &[("selftest", "运行：引擎自检（设置往返）")];
+
+// The automation engine (native/engine/), bundled with its templates by build.rs.
+#[cfg(target_os = "macos")]
+const ENGINE_SOURCE: &str = include_str!(concat!(env!("OUT_DIR"), "/engine.js"));
+
+// Run a command in the engine's content world (the engine is injected first if needed).
+#[cfg(target_os = "macos")]
+fn engine_command(window: &WebviewWindow, command: &str) -> tauri::Result<()> {
+    let command = std::ffi::CString::new(command).expect("engine command has no NUL");
+    window.with_webview(move |webview| unsafe {
+        endfield_engine_command(webview.inner(), command.as_ptr());
+    })
+}
+
 // Only record the origin: authentication query strings and fragments stay out of logs.
 fn log_navigation(event: &str, label: &str, url: &tauri::Url) {
     eprintln!("{event} window={label} origin={}", url.origin().ascii_serialization());
@@ -80,6 +97,12 @@ fn create_window(
                 PageLoadEvent::Finished => "page_finished",
             };
             log_navigation(event, window.label(), payload.url());
+            #[cfg(target_os = "macos")]
+            if window.label() == "game" && matches!(payload.event(), PageLoadEvent::Finished) {
+                if let Err(error) = engine_command(&window, "void 0") {
+                    eprintln!("engine_inject_failed: {error}");
+                }
+            }
         })
         .on_new_window(move |url, features| {
             let id = POPUP_ID.fetch_add(1, Ordering::Relaxed);
@@ -100,9 +123,9 @@ fn create_window(
             }
         });
     if label == "game" {
-        builder = builder.initialization_script(include_str!("../native/diagnostics.js"))
-            .initialization_script(include_str!("../native/cloud_input.js"))
-            .initialization_script(include_str!("../native/automation.js"));
+        builder = builder.initialization_script(include_str!("../native/visibility.js"))
+            .initialization_script(include_str!("../native/diagnostics.js"))
+            .initialization_script(include_str!("../native/cloud_input.js"));
     }
     if let Some(features) = features {
         builder = builder.window_features(features);
@@ -118,6 +141,8 @@ fn create_window(
             endfield_keep_running_when_covered(webview.inner());
             endfield_configure_webrtc(webview.inner());
             endfield_lock_viewport(webview.inner());
+            let source = std::ffi::CString::new(ENGINE_SOURCE).expect("engine source has no NUL");
+            endfield_install_engine(webview.inner(), source.as_ptr());
         })?;
     }
     Ok(window)
@@ -146,10 +171,12 @@ fn main() {
                 app, "游戏", true,
                 &[&reload, &home, &fullscreen, &sensitivity_1, &sensitivity_2, &sensitivity_4, &sensitivity_8, &sensitivity_16],
             )?)?;
-            let capture = MenuItem::with_id(app, "automation-capture", "读取游戏画面（3 秒后）", true, None::<&str>)?;
-            let run = MenuItem::with_id(app, "automation-run", "验证设置往返", true, None::<&str>)?;
-            let stop = MenuItem::with_id(app, "automation-stop", "停止验证", true, Some("CmdOrCtrl+Shift+."))?;
-            menu.append(&Submenu::with_items(app, "自动化", true, &[&capture, &run, &stop])?)?;
+            let automation = Submenu::new(app, "自动化", true)?;
+            for (task, title) in ENGINE_MENU_TASKS {
+                automation.append(&MenuItem::with_id(app, format!("engine-run:{task}"), *title, true, None::<&str>)?)?;
+            }
+            automation.append(&MenuItem::with_id(app, "engine-stop", "停止", true, Some("CmdOrCtrl+Shift+."))?)?;
+            menu.append(&automation)?;
             app.set_menu(menu)?;
             create_window(app.handle(), "game", CLOUD_URL.parse()?, None)?;
             #[cfg(all(target_os = "macos", debug_assertions))]
@@ -172,14 +199,17 @@ fn main() {
                         Ok(())
                     }
                 }
-                "automation-capture" | "automation-run" | "automation-stop" => {
-                    let action = match event.id().as_ref() { "automation-capture" => 0, "automation-run" => 1, _ => 2 };
-                    #[cfg(target_os = "macos")]
-                    if let Some(game) = windows.get("game") {
-                        game.with_webview(move |webview| unsafe { endfield_automation_action(webview.inner(), action); })
-                    } else { Ok(()) }
-                    #[cfg(not(target_os = "macos"))]
-                    { let _ = action; Ok(()) }
+                #[cfg(target_os = "macos")]
+                id if id == "engine-stop" || id.starts_with("engine-run:") => {
+                    let command = match id.strip_prefix("engine-run:") {
+                        // Task ids come from ENGINE_MENU_TASKS, never from the page.
+                        Some(task) => format!("window.__engine.run([{task:?}])"),
+                        None => "window.__engine.stop('stopped_by_menu')".to_string(),
+                    };
+                    match windows.get("game") {
+                        Some(game) => engine_command(game, &command),
+                        None => Ok(()),
+                    }
                 }
                 "reload" => window.reload(),
                 "home" => window.navigate(CLOUD_URL.parse().expect("valid cloud URL")),

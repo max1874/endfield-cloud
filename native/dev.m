@@ -9,7 +9,24 @@ void endfield_dev_eval(void *rawWebView, const char *script, const char *outputP
     NSString *body = [NSString stringWithUTF8String:script];
     NSString *output = [NSString stringWithUTF8String:outputPath];
     NSDate *started = [NSDate date];
-    [webView callAsyncJavaScript:body arguments:nil inFrame:nil inContentWorld:WKContentWorld.pageWorld
+    // "//native:window" reports the AppKit state WebKit derives page visibility from.
+    if ([body hasPrefix:@"//native:window"]) {
+        NSWindow *window = webView.window;
+        if ([body containsString:@"orderFront"]) [window orderFrontRegardless];
+        NSDictionary *state = @{
+            @"hasWindow": @(window != nil), @"isVisible": @(window.isVisible), @"isMiniaturized": @(window.isMiniaturized),
+            @"occlusionVisible": @((window.occlusionState & NSWindowOcclusionStateVisible) != 0),
+            @"onActiveSpace": @(window.isOnActiveSpace), @"viewHidden": @(webView.isHiddenOrHasHiddenAncestor),
+            @"appActive": @(NSApp.isActive), @"appHidden": @(NSApp.isHidden),
+            @"frame": NSStringFromRect(window.frame), @"windowNumber": @(window.windowNumber)};
+        NSData *json = [NSJSONSerialization dataWithJSONObject:state options:NSJSONWritingPrettyPrinted error:nil];
+        [json writeToFile:[output stringByAppendingPathExtension:@"json"] atomically:YES];
+        return;
+    }
+    // A script starting with "//world:engine" runs in the engine's isolated world.
+    WKContentWorld *world = [body hasPrefix:@"//world:engine"] ? [WKContentWorld worldWithName:@"endfield-engine"]
+                                                                : WKContentWorld.pageWorld;
+    [webView callAsyncJavaScript:body arguments:nil inFrame:nil inContentWorld:world
                completionHandler:^(id result, NSError *error) {
         double ms = -started.timeIntervalSinceNow * 1000;
         static NSString *const PNGPrefix = @"data:image/png;base64,";
