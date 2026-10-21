@@ -42,6 +42,16 @@ static BOOL IsCloudURL(NSURL *url) {
 }
 - (void)userContentController:(WKUserContentController *)controller
      didReceiveScriptMessage:(WKScriptMessage *)message {
+    if ([message.name isEqualToString:@"endfieldDiagnostics"]) {
+        // diagnostics.js redacts and truncates before posting; cap again here.
+        if ([message.body isKindOfClass:NSString.class]) {
+            NSString *text = message.body;
+            if (text.length > 700) text = [text substringToIndex:700];
+            text = [text stringByReplacingOccurrencesOfString:@"\n" withString:@" "];
+            fprintf(stderr, "page %s\n", text.UTF8String);
+        }
+        return;
+    }
     if (!message.frameInfo.isMainFrame || !IsCloudURL(message.webView.URL)) return;
     if (![message.body isKindOfClass:NSString.class]) return;
     NSSet *events = [NSSet setWithArray:@[@"locked", @"released", @"error", @"relative_motion", @"sensitivity_1", @"sensitivity_2", @"sensitivity_4", @"sensitivity_8", @"sensitivity_16", @"sensitivity_unavailable", @"bridge_ready"]];
@@ -61,4 +71,5 @@ void endfield_install_pointer_lock(void *rawWebView) {
     webView.UIDelegate = proxy;
     WKUserContentController *controller = webView.configuration.userContentController;
     [controller addScriptMessageHandler:proxy name:@"endfieldPointerLockEvents"];
+    [controller addScriptMessageHandler:proxy name:@"endfieldDiagnostics"];
 }

@@ -8,6 +8,8 @@ use tauri::{
 #[cfg(target_os = "macos")]
 extern "C" {
     fn endfield_install_pointer_lock(webview: *mut std::ffi::c_void);
+    fn endfield_keep_running_when_covered(webview: *mut std::ffi::c_void);
+    fn endfield_configure_webrtc(webview: *mut std::ffi::c_void);
     fn endfield_automation_action(webview: *mut std::ffi::c_void, action: i32);
 }
 
@@ -57,7 +59,8 @@ fn create_window(
             }
         });
     if label == "game" {
-        builder = builder.initialization_script(include_str!("../native/cloud_input.js"))
+        builder = builder.initialization_script(include_str!("../native/diagnostics.js"))
+            .initialization_script(include_str!("../native/cloud_input.js"))
             .initialization_script(include_str!("../native/automation.js"));
     }
     if let Some(features) = features {
@@ -71,6 +74,8 @@ fn create_window(
         window.with_webview(|webview| unsafe {
             // Tauri invokes this closure on WKWebView's owning thread.
             endfield_install_pointer_lock(webview.inner());
+            endfield_keep_running_when_covered(webview.inner());
+            endfield_configure_webrtc(webview.inner());
         })?;
     }
     Ok(window)

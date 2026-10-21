@@ -12,7 +12,7 @@
   };
   const prepareInput = () => {
     const element = video();
-    if (stopped || !document.hasFocus()) throw new Error('input_not_active');
+    if (stopped) throw new Error('input_not_active');
     // The SDK gates keyboard input on its own mouse-enter state.
     // Do not call focus(): the SDK focus handler also reads the clipboard.
     element.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
@@ -23,10 +23,10 @@
     if (release) release();
     release = null;
   };
-  document.addEventListener('keydown', event => {
-    if (event.isTrusted && event.key === 'Escape') stop();
-  }, true);
-  window.addEventListener('blur', stop);
+  // Automation may run while the window is in the background. Any real input
+  // inside the game means the user has taken over, so stop immediately.
+  for (const type of ['keydown', 'mousedown', 'wheel'])
+    document.addEventListener(type, event => { if (event.isTrusted) stop(); }, true);
 
   window.__endfieldAutomation = {
     begin() { stopped = false; document.exitPointerLock(); return true; },

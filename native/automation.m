@@ -12,6 +12,7 @@ static char AutomationKey;
 @property(nonatomic) NSInteger stage;
 @property(nonatomic) NSTimeInterval deadline;
 @property(nonatomic) double lastVideoTime;
+@property(nonatomic, copy) NSString *lastState;
 @property(nonatomic) NSURL *directory;
 @property(nonatomic) NSMutableArray *records;
 @property(nonatomic) NSUInteger frameNumber;
@@ -40,6 +41,7 @@ static char AutomationKey;
     self.records = [NSMutableArray array];
     self.frameNumber = 0;
     self.lastVideoTime = -1;
+    self.lastState = nil;
     fprintf(stderr, "automation artifacts=%s\n", self.directory.path.UTF8String);
 }
 - (void)status:(NSString *)text {
@@ -57,8 +59,7 @@ static char AutomationKey;
         @"capture_failed": @"未取得游戏画面，请先进入游戏",
         @"bridge_unavailable": @"页面尚未就绪，请重新加载",
         @"input_failed": @"操作未发送，验证已停止",
-        @"focus_lost": @"已切出窗口，验证已停止",
-        @"user_interrupted": @"已按 Esc 停止验证",
+        @"user_interrupted": @"检测到手动操作，验证已停止",
         @"user_stopped": @"已停止验证",
         @"state_timeout": @"未识别到预期画面，验证已停止"
     };
@@ -70,8 +71,8 @@ static char AutomationKey;
     self.running = YES;
     self.generation++;
     self.stage = 0;
-    self.deadline = NSDate.timeIntervalSinceReferenceDate + 10;
-    [self status:@"正在验证设置往返 · Esc 停止"];
+    self.deadline = NSDate.timeIntervalSinceReferenceDate + 30;
+    [self status:@"正在验证设置往返 · 手动操作游戏即停止"];
     NSUInteger generation = self.generation;
     [self.webView evaluateJavaScript:@"window.__endfieldAutomation.begin()" completionHandler:^(id result, NSError *error) {
         if (generation != self.generation) return;
@@ -122,17 +123,19 @@ static char AutomationKey;
     return NO;
 }
 - (NSString *)classify:(NSArray *)texts {
-    NSUInteger menu = 0, hud = 0;
+    NSUInteger menu = 0;
     for (NSString *word in @[@"干员", @"行动手册", @"好友", @"贵重品库", @"采购中心"])
         menu += [self texts:texts contain:word top:0 bottom:1];
-
-    for (NSString *word in @[@"F7", @"F8", @"F9", @"ESC"])
-        hud += [self texts:texts contain:word top:0 bottom:0.12];
     if (menu >= 3) return @"menu";
+    if ([self texts:texts contain:@"点击任意位置继续" top:0.4 bottom:0.7]) return @"title";
     if ([self texts:texts contain:@"设置" top:0 bottom:0.1] &&
         [self texts:texts contain:@"性能与画面" top:0.08 bottom:0.2] &&
         [self texts:texts contain:@"队友技能特效" top:0.15 bottom:0.4]) return @"settings";
-    if (hud >= 2 && [self texts:texts contain:@"UID" top:0.85 bottom:1]) return @"gameplay";
+    // The top-right key hints (F7/F8/ESC) are too small for OCR to read reliably
+    // over a changing background. Loading screens also show the UID, so exclude them,
+    // and a menu fading in or out shows a few menu labels before it is fully drawn.
+    if (menu == 0 && [self texts:texts contain:@"UID" top:0.85 bottom:1] &&
+        ![self texts:texts contain:@"LOADING" top:0 bottom:1]) return @"gameplay";
     return @"unknown";
 }
 - (void)saveFrame:(NSDictionary *)frame texts:(NSArray *)texts state:(NSString *)state {
@@ -159,9 +162,13 @@ static char AutomationKey;
     });
 }
 - (void)act:(NSString *)script next:(NSInteger)stage generation:(NSUInteger)generation {
-    if (![self trusted] || !self.webView.window.isKeyWindow || !NSApp.isActive) { [self stop:@"focus_lost"]; return; }
+    [self act:script next:stage timeout:10 generation:generation];
+}
+- (void)act:(NSString *)script next:(NSInteger)stage timeout:(NSTimeInterval)timeout generation:(NSUInteger)generation {
+    // The window may be covered or inactive; user takeover is detected in the page.
+    if (![self trusted]) { [self stop:@"input_failed"]; return; }
     self.stage = stage;
-    self.deadline = NSDate.timeIntervalSinceReferenceDate + 10;
+    self.deadline = NSDate.timeIntervalSinceReferenceDate + timeout;
     [self.webView evaluateJavaScript:script completionHandler:^(id result, NSError *error) {
         if (generation != self.generation) return;
         if (error || ![result boolValue]) { [self stop:@"input_failed"]; return; }
@@ -169,7 +176,6 @@ static char AutomationKey;
     }];
 }
 - (void)observe:(NSUInteger)generation {
-    if (!self.webView.window.isKeyWindow || !NSApp.isActive) { [self stop:@"focus_lost"]; return; }
     [self readFrame:^(NSDictionary *frame, NSArray *texts, NSError *error) {
         if (generation != self.generation || !self.running) return;
         if (error) { [self stop:@"capture_failed"]; return; }
@@ -181,7 +187,14 @@ static char AutomationKey;
         self.lastVideoTime = videoTime;
         if (NSDate.timeIntervalSinceReferenceDate > self.deadline) { [self stop:@"state_timeout"]; return; }
         if (!fresh) { [self schedule:0.5 generation:generation]; return; }
-        if (self.stage == 0 && [state isEqualToString:@"gameplay"]) {
+        // Act only on a state seen in two consecutive fresh frames, never on a transition.
+        BOOL stable = [state isEqualToString:self.lastState];
+        self.lastState = state;
+        if (!stable) { [self schedule:0.3 generation:generation]; return; }
+        if (self.stage == 0 && [state isEqualToString:@"title"]) {
+            // Entering the world from the title screen loads for a while.
+            [self act:@"window.__endfieldAutomation.click(0.5, 0.6)" next:0 timeout:90 generation:generation];
+        } else if (self.stage == 0 && [state isEqualToString:@"gameplay"]) {
             [self act:@"window.__endfieldAutomation.escape()" next:1 generation:generation];
         } else if (self.stage == 1 && [state isEqualToString:@"menu"]) {
             // This prototype supports the current PC menu layout only. Never click
