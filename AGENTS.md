@@ -4,6 +4,9 @@ A macOS client for the official cloud version of Arknights: Endfield (云·终�
 built on Tauri + WKWebView, with our own automation engine that reads the video
 stream and drives the game through in-page input.
 
+The current goal, its scope and its ledger are in `GOAL.md`; read it before working
+and update its ledger when a status changes.
+
 ## Essential variable
 
 A task succeeds only when the game itself shows the intended change. Every
