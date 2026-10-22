@@ -105,10 +105,11 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 | Spike 3 capture/OCR timing | done | `AGENTS.md` "Input facts" |
 | Spike 4 template/number OCR robustness | not started | |
 | Engine core (JS in isolated world, OCR bridge, evidence, runner) | in-app selftest passed | run `20261021-164204-66t1` (title → world → menu → settings → world), screen locked, session already streaming |
-| E1 session start/exit | done (hot-loaded sources); bundled build not yet run with a display on | 3 consecutive cold starts (cooldown retry included) → title → 月卡 notice/world → selftest passed → session exited: runs `20261022-093105-tn6j`, `-093208-aqib`, `-093330-ly2e`; failure path seen (`nav_world_timeout`, `session_start_timeout`) |
-| E1 unattended with displays asleep | blocked: needs Max | works if the app was opened with a display on and stays open (AGENTS.md "Screen lock"); a launch while displays sleep stalls. Keep-open vs waking the display is his call |
+| E1 session start/exit | done | bundled build run `20261022-095446-2ntl` passed; 3 consecutive cold starts (cooldown retry included) → title → 月卡 notice/world → selftest passed → session exited: runs `20261022-093105-tn6j`, `-093208-aqib`, `-093330-ly2e`; failure path seen (`nav_world_timeout`, `session_start_timeout`) |
+| E1 unattended with displays asleep | out of scope | Max (2026-10-22): runs happen with the display on; neither keeping the app open nor waking the display is wanted |
 | E2 input layer | partial | key, click with deltas, Alt+click, drag implemented; Alt+click and drag not yet exercised through the engine |
-| E3 recognition | partial | world/menu/settings/title/loading fingerprints; ESC-label template; NCC matching and number OCR untested on varied frames |
+| E3 recognition | partial | world/menu/settings/title/loading/boot/总控中枢/获得奖励 fingerprints; ESC-label template; item counts via `E.readNumber` (digits mode) verified on two reward frames; NCC matching untested on varied frames |
 | E4 navigation | partial | nav to world from boot splash/title/月卡 notice/menu/settings observed |
 | E5 runner/UI | partial | menu run/stop, per-task evidence, summary; no task options UI, no scheduler |
-| Phase 1–4 tasks | not started | |
+| 基建 快速收取 (`dijiang_collect`: 总控事项 产物 + 线索) | partial | 线索 collected by the task live (run `20261022-095929-5qlz`; it recorded 信用 9 for a tile showing 60, fixed in native OCR, replay of both reward frames now reads 60 and 2/2/3/2/24 three times out of three); 产物 flow done by hand once at 09:57 (3 cabins collected); `nothing_to_do` seen live (`20261022-100330-nwju`). Next: 产物 through the task once products accumulate |
+| Other Phase 1–4 tasks | not started | |

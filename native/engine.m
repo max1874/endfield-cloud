@@ -1,6 +1,7 @@
 #import <AppKit/AppKit.h>
 #import <WebKit/WebKit.h>
 #import <Vision/Vision.h>
+#import <CoreImage/CoreImage.h>
 #import <objc/runtime.h>
 
 // Native services for the automation engine (native/engine/*.js). The engine runs in
@@ -43,17 +44,32 @@ static NSData *DecodeImage(id value) {
     return data.length > 0 && data.length <= 32 * 1024 * 1024 ? data : nil;
 }
 
-static NSArray *RecognizeText(NSData *image, BOOL fast, NSError **error) {
+// `digits` is for small crops holding one number (item counts). Measured 2026-10-22 on
+// reward tiles: revision 3 read a lone "60" as upside-down "09" in half the crops, and
+// colored crops often lost single digits; a desaturated crop read with revision 2 got
+// 36 of 36 right.
+static NSArray *RecognizeText(NSData *image, BOOL fast, BOOL digits, NSError **error) {
     VNRecognizeTextRequest *request = [VNRecognizeTextRequest new];
     request.recognitionLevel = fast ? VNRequestTextRecognitionLevelFast : VNRequestTextRecognitionLevelAccurate;
     request.minimumTextHeight = 0.005;
     request.recognitionLanguages = @[@"zh-Hans", @"en-US"];
     request.usesLanguageCorrection = NO;
-    [[[VNImageRequestHandler alloc] initWithData:image options:@{}] performRequests:@[request] error:error];
+    VNImageRequestHandler *handler;
+    if (digits) {
+        request.revision = VNRecognizeTextRequestRevision2;
+        CIImage *gray = [[CIImage imageWithData:image] imageByApplyingFilter:@"CIColorControls"
+                                                         withInputParameters:@{kCIInputSaturationKey: @0}];
+        handler = [[VNImageRequestHandler alloc] initWithCIImage:gray options:@{}];
+    } else {
+        handler = [[VNImageRequestHandler alloc] initWithData:image options:@{}];
+    }
+    [handler performRequests:@[request] error:error];
     NSMutableArray *texts = [NSMutableArray array];
     for (VNRecognizedTextObservation *observation in request.results) {
         VNRecognizedText *text = [observation topCandidates:1].firstObject;
         if (!text) continue;
+        // Game text is always upright; a rotated reading is a misread (see above).
+        if (observation.topLeft.x > observation.bottomRight.x || observation.topLeft.y < observation.bottomRight.y) continue;
         CGRect box = observation.boundingBox;
         [texts addObject:@{@"text": text.string, @"confidence": @(text.confidence),
                            @"x": @(box.origin.x), @"y": @(1 - CGRectGetMaxY(box)),
@@ -86,9 +102,10 @@ static NSArray *RecognizeText(NSData *image, BOOL fast, NSError **error) {
         NSData *image = DecodeImage(body[@"image"]);
         if (!image) { reply(nil, @"bad_image"); return; }
         BOOL fast = [body[@"fast"] boolValue];
+        BOOL digits = [body[@"digits"] boolValue];
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             NSError *error = nil;
-            NSArray *texts = RecognizeText(image, fast, &error);
+            NSArray *texts = RecognizeText(image, fast, digits, &error);
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (error) reply(nil, error.localizedDescription);
                 else reply(@{@"texts": texts}, nil);

@@ -60,7 +60,10 @@ const CLOUD_URL: &str = "https://endfield.hypergryph.com/cloud";
 static POPUP_ID: AtomicUsize = AtomicUsize::new(1);
 
 // Tasks offered in the 自动化 menu: (engine task id, menu title).
-const ENGINE_MENU_TASKS: &[(&str, &str)] = &[("selftest", "运行：引擎自检（设置往返）")];
+const ENGINE_MENU_TASKS: &[(&str, &str)] = &[
+    ("selftest", "运行：引擎自检（设置往返）"),
+    ("dijiang_collect", "运行：基建 · 快速收取"),
+];
 
 // The automation engine (native/engine/), bundled with its templates by build.rs.
 #[cfg(target_os = "macos")]

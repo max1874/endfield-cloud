@@ -74,6 +74,7 @@ fn main() {
             println!("cargo:rerun-if-changed={source}");
         }
         println!("cargo:rustc-link-lib=framework=Vision");
+        println!("cargo:rustc-link-lib=framework=CoreImage");
         println!("cargo:rustc-link-lib=framework=AppKit");
         println!("cargo:rustc-link-lib=framework=WebKit");
     }

@@ -135,10 +135,10 @@
 
   // ---- OCR -----------------------------------------------------------------------
   // Texts come back as { text, confidence, x, y, w, h } in frame coordinates.
-  E.ocr = async (frame, roi = [0, 0, 1, 1], { scale = 1, fast = false } = {}) => {
+  E.ocr = async (frame, roi = [0, 0, 1, 1], { scale = 1, fast = false, digits = false } = {}) => {
     const canvas = E.crop(frame, roi, scale);
     const image = roi[2] * roi[3] > 0.25 ? canvas.toDataURL('image/jpeg', 0.92) : canvas.toDataURL('image/png');
-    const { texts } = await bridge({ op: 'ocr', image, fast });
+    const { texts } = await bridge({ op: 'ocr', image, fast, digits });
     E.check();
     return texts.map(t => ({ ...t, x: roi[0] + t.x * roi[2], y: roi[1] + t.y * roi[3], w: t.w * roi[2], h: t.h * roi[3] }));
   };
@@ -152,6 +152,19 @@
   E.readNumbers = async (frame, roi, options) => {
     const texts = await E.ocr(frame, roi, { scale: 2, ...options });
     return texts.flatMap(t => (t.text.replace(/[,，\s]/g, '').match(/\d+/g) || []).map(Number));
+  };
+  // One integer in a small region, such as an item count on a reward tile. Read with
+  // the native `digits` mode (engine.m) at several scales and widths; the value must
+  // be seen at least twice and never contradicted, otherwise null (unread).
+  E.readNumber = async (frame, [x, y, w, h]) => {
+    const votes = new Map();
+    for (const scale of [3, 4, 6]) for (const k of [1, 1.5]) {
+      const numbers = await E.readNumbers(frame, [x - w * (k - 1) / 2, y, w * k, h], { scale, digits: true });
+      if (numbers.length === 1) votes.set(numbers[0], (votes.get(numbers[0]) || 0) + 1);
+    }
+    if (votes.size !== 1) return null;
+    const [[value, count]] = votes;
+    return count >= 2 ? value : null;
   };
 
   // ---- templates -----------------------------------------------------------------
