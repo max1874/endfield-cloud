@@ -154,17 +154,20 @@
     return texts.flatMap(t => (t.text.replace(/[,，\s]/g, '').match(/\d+/g) || []).map(Number));
   };
   // One integer in a small region, such as an item count on a reward tile. Read with
-  // the native `digits` mode (engine.m) at several scales and widths; the value must
-  // be seen at least twice and never contradicted, otherwise null (unread).
+  // the native `digits` mode (engine.m) at several scales and widths. A value counts
+  // when it is the only one read at least twice, or when it has at least 3 votes and
+  // twice the runner-up (a widened crop once read "220" as "1220"); otherwise null.
   E.readNumber = async (frame, [x, y, w, h]) => {
     const votes = new Map();
     for (const scale of [3, 4, 6]) for (const k of [1, 1.5]) {
       const numbers = await E.readNumbers(frame, [x - w * (k - 1) / 2, y, w * k, h], { scale, digits: true });
       if (numbers.length === 1) votes.set(numbers[0], (votes.get(numbers[0]) || 0) + 1);
     }
-    if (votes.size !== 1) return null;
-    const [[value, count]] = votes;
-    return count >= 2 ? value : null;
+    const ranked = [...votes].sort((a, b) => b[1] - a[1]);
+    if (!ranked.length) return null;
+    const [[value, count], runnerUp] = ranked;
+    if (!runnerUp) return count >= 2 ? value : null;
+    return count >= 3 && count >= 2 * runnerUp[1] ? value : null;
   };
 
   // ---- templates -----------------------------------------------------------------
@@ -328,8 +331,10 @@
 
   // ---- spending guard ------------------------------------------------------------
   // Max's rule: never spend 衍质源石 or 嵌晶玉. Before confirming anything that
-  // spends, a task calls this on a fresh look of the confirmation screen.
-  E.PREMIUM = /源石|嵌晶玉|至纯源石/;
+  // spends, a task calls this on a fresh look of the confirmation screen. A bare 源石
+  // counts only on its own or with a count: place names such as the outpost
+  // location 源石研究园 contain it (blocked a trade 2026-10-22).
+  E.PREMIUM = /衍质源石|至纯源石|嵌晶玉|^源石\s*([×xX]?\s*\d+)?$/;
   E.guardSpend = look => {
     const hit = look.texts.find(t => E.PREMIUM.test(t.text));
     if (hit) E.block(`premium_currency_on_screen:${hit.text}`);

@@ -91,7 +91,9 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
   and gifts without asking. Never spend 衍质源石 or 嵌晶玉: the input layer refuses
   to confirm any dialog or purchase that shows either, and the task ends `blocked`.
 - 据点交易 (selling goods for 调度券) keeps at least 100 of every goods item; it
-  sells only the amount above 100.
+  sells only the amount above 100. At every outpost it sells the goods with the
+  largest stock first (更换货品), then the next, until the outpost's reserve runs
+  out. 四号谷地 may sell only 精选荞愈胶囊 and 高容谷地电池 (Max, 2026-10-22).
 - Never drag item contents (warehouse/backpack); never delete, decompose or sell
   anything Max has not configured.
 - If Max plays and consumes a daily state, that task waits for the next reset.
@@ -116,5 +118,5 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 | 日常奖励 · 邮件 (`mail_claim`) | partial | `nothing_to_do` live (`20261022-100935-uu8k`); claim path waits for mail with attachments |
 | 日常奖励 · 转交委托/通行证/活动 | not started | |
 | 简制手册 (`prod_manual`) | partial | navigation 背包 → 简易制作 → 简制手册 → first item and back observed; `nothing_to_do` live (`20261022-101138-xr9z`); 一键领取 path (from MaaEnd's flow) not yet seen on our stream |
-| 据点交易 (`outpost_trading`) | partial | 武陵: run `20261022-102629-tbft` passed at 3 outposts, receipts = shares × price (1350; 58.9万; 67.6万), goods kept ≥ 100 (113, 112; 26061 where the outpost reserve ran out), 调度券 184万 → 254万 in frames. Next: 四号谷地 via region switch; 更换货品 when the selected goods are at 100 |
+| 据点交易 (`outpost_trading`) | partial | both regions, 6 outposts, goods chosen by stock through 更换货品: run `20261022-111235-9p2j` passed (hot-loaded source; 重建指挥部 精选荞愈胶囊 16396 × 70 = reserve 1147765 → 45, stock 18037 → 1644; 难民暂居处 skipped at 34 tradable; 四号谷地 allowlist obeyed). Earlier runs before the allowlist also sold 荞愈胶囊 1460, 铁制零件 34360 (→ 100), 紫晶质瓶 1472 in 四号谷地. Failure path seen (`shares_unread`, `unread_after`, `receipt_1_expected_10098`, all fixed). Next: run from the bundled build via the menu |
 | Other Phase 1–4 tasks | not started | |

@@ -1,14 +1,21 @@
-// 据点交易: menu → 地区建设 → 据点管理. Each outpost tab trades the selected goods from
-// the region warehouse for 调度券 out of the outpost's reserve. Max's rule
-// (2026-10-22): keep at least 100 of every goods item, so a trade sells only what is
-// above 100. The share count is set with the slider and the −/+ buttons: dragging
-// reaches the maximum, a press steps by one, holding repeats with acceleration
-// (1.5 s ≈ 15, 3 s ≈ 230), so the count is read back after every step.
+// 据点交易: menu → 地区建设 → 据点管理, in both regions. Each outpost tab trades one
+// selected goods from the region warehouse for 调度券 out of the outpost's reserve.
+// Max's rules (2026-10-22): keep at least 100 of every goods item; at every outpost
+// sell the goods with the largest stock first (to keep the warehouse from filling),
+// switching goods with 更换货品 until the outpost's reserve runs out or no goods has
+// enough above 100. The share count is set with the slider and the −/+ buttons:
+// dragging reaches the maximum, a press steps by one, holding repeats with
+// acceleration (1.5 s ≈ 15, 3 s ≈ 230), so the count is read back after every step.
 (() => {
   const E = window.__engine;
   if (!E) return;
 
   const KEEP = 100;
+  // Outposts sitting near 100 would otherwise trade a few units on every run.
+  const MIN_SHARES = 50;
+  // Goods each region may sell (Max, 2026-10-22); a region not listed sells any goods.
+  // Names must match exactly: 荞愈胶囊 and 优质荞愈胶囊 are different goods.
+  const ALLOWED = { 四号谷地: ['精选荞愈胶囊', '高容谷地电池'] };
   const px = (x, y) => [x / 1920, y / 1080];
   const TABS = [px(290, 118), px(735, 118), px(1205, 118)];
   const SHARES = [0.8, 0.745, 0.12, 0.04];
@@ -22,10 +29,8 @@
   E.screen('outposts', look => look.has(/据点$/, [0.05, 0, 0.15, 0.07]) && look.has('本次交易份数'), 74);
   E.screen('region', look => look.has('地区建设管理') && look.has('据点管理'), 74);
 
-  const number = async (frame, roi) => {
-    const values = await E.readNumbers(frame, roi, { scale: 2 });
-    return values.length ? values[values.length - 1] : null;
-  };
+  // Every number here sits alone in its region (labels carry no digits).
+  const number = (frame, roi) => E.readNumber(frame, roi);
   const shares = async () => number(await E.grab(), SHARES);
 
   // Bring the share count to exactly `target` (≥ 1).
@@ -44,50 +49,172 @@
     E.fail('shares_not_settled');
   }
 
-  async function tradeOutpost(t, index) {
-    await E.click(...TABS[index]);
-    await E.sleep(1200);
+  // ---- goods list (更换货品) ----------------------------------------------------
+  E.screen('goods_list', look => look.has('选择交易货品', [0.1, 0.15, 0.3, 0.07]), 75);
+  const LIST_BAR = 1668 / 1920;
+  const stockValue = text => {
+    const m = text.match(/(\d+(?:\.(\d+))?)(万)?/);
+    if (!m) return null;
+    const value = parseFloat(m[1]) * (m[3] ? 10000 : 1);
+    // "9万" is anything from 85000 to 94999; a plain number is exact.
+    const slack = m[3] ? 0.5 * 10 ** (4 - (m[2] || '').length) : 0;
+    return { value, slack };
+  };
+  // Cards visible in one look: name above 本地仓储, stock under it.
+  // The selected card also carries a 当前 tag in the name line.
+  const readCards = look => E.findAll(look.texts, '本地仓储').flatMap(label => {
+    const value = E.find(look.texts, /^\d+(\.\d+)?万?$/, [label.x - 0.005, label.y + label.h, 0.065, 0.05]);
+    const name = E.findAll(look.texts, /[\u4e00-\u9fa5]{2,}/, [label.x - 0.01, label.y - 0.06, 0.15, 0.05]).find(t => !/当前/.test(t.text));
+    const unitPrice = E.find(look.texts, /^\d+/, [label.x + 0.06, label.y + label.h, 0.07, 0.05]);
+    const stock = value && stockValue(value.text);
+    // Names come with stray leading marks ("［重息壤"); keep the Chinese name only.
+    return name && stock ? [{ name: name.text.replace(/^[^\u4e00-\u9fa5]+/, ''), ...stock, text: value.text,
+      price: unitPrice ? parseInt(unitPrice.text, 10) : null }] : [];
+  });
+  const scroll = async down => {
+    await E.drag([LIST_BAR, down ? 0.3 : 0.65], [LIST_BAR, down ? 0.85 : 0.1], { ms: 700 });
+    await E.sleep(900);
+    return E.look();
+  };
+
+  // Open 更换货品 and select the goods with the largest stock that can sell at least
+  // MIN_SHARES, is allowed in `region` and was not tried yet. Returns the chosen card,
+  // or null (list closed).
+  async function chooseGoods(t, region, label, tried) {
+    const open = await E.look();
+    const change = E.find(open.texts, '更换货品', [0.85, 0.55, 0.15, 0.08]);
+    if (!change) E.fail('outpost_without_更换货品');
+    await E.click(...E.center(change));
+    let look = await E.waitFor('goods_list', { timeout: 10000 });
+    const cards = new Map();
+    for (const card of readCards(look)) cards.set(card.name, { ...card, down: false });
+    const top = look;
+    look = await scroll(true);
+    for (const card of readCards(look)) if (!cards.has(card.name)) cards.set(card.name, { ...card, down: true });
+    const ranked = [...cards.values()].sort((a, b) => b.value - a.value);
+    t.note(`${label} goods: ${ranked.map(c => `${c.name}=${c.text}`).join(' ')}`);
+    const allowed = ALLOWED[region];
+    const pick = ranked.find(c => c.value - c.slack - KEEP >= MIN_SHARES && !tried.has(c.name) && (!allowed || allowed.includes(c.name)));
+    if (!pick) {
+      await t.save(top.frame, `${label}-goods-none`);
+      await E.key('Escape');
+      await E.waitFor('outposts', { timeout: 10000 });
+      return null;
+    }
+    if (!pick.down) look = await scroll(false);
+    // Exact name: "息壤" is also part of "重息壤" (picked the wrong goods 2026-10-22).
+    const button = E.find(look.texts, new RegExp(`^[^\u4e00-\u9fa5]*${pick.name}$`));
+    if (!button) E.fail(`goods_${pick.name}_not_visible`);
+    await E.click(...E.center(button));
+    await E.sleep(600);
+    look = await E.look();
+    await t.save(look.frame, `${label}-goods-${ranked.indexOf(pick) + 1}`);
+    const confirm = E.find(look.texts, /^确认$/, [0.7, 0.75, 0.3, 0.12]);
+    if (!confirm) E.fail('goods_list_without_确认');
+    await E.click(...E.center(confirm));
+    await E.waitFor('outposts', { timeout: 10000 });
+    return pick;
+  }
+
+  // Trade the selected goods down to KEEP. Returns 'traded', 'small' (not enough above
+  // KEEP) or 'reserve' (the outpost cannot pay for more).
+  async function tradeSelected(t, outpost, label, goods) {
     const look = await E.waitFor('outposts');
-    const name = E.find(look.texts, /^[\u4e00-\u9fa5]{3,}$/, [0.15, 0.22, 0.3, 0.08])?.text || `outpost${index + 1}`;
-    const before = await t.save(look.frame, `outpost${index + 1}-before`);
+    const before = await t.save(look.frame, `${label}-before`);
     const stock = await number(look.frame, STOCK), reserve = await number(look.frame, RESERVE);
-    const price = await number(look.frame, PRICE), max = await number(look.frame, MAX_LABEL);
-    if ([stock, reserve, price, max].includes(null)) E.fail(`${name}_unread_stock_${stock}_reserve_${reserve}_price_${price}_max_${max}`);
+    // A lone single-digit price ("+3") may not read; the goods card shows it too.
+    const shownPrice = await number(look.frame, PRICE), max = await number(look.frame, MAX_LABEL);
+    if (shownPrice !== null && goods?.price != null && shownPrice !== goods.price) E.fail(`${outpost}_price_${shownPrice}_card_${goods.price}`);
+    const price = shownPrice ?? goods?.price ?? null;
+    if ([stock, price, max].includes(null)) E.fail(`${outpost}_unread_stock_${stock}_price_${price}_max_${max}`);
+    // The list's stock must match the warehouse figure, or the wrong goods is selected.
+    if (goods && Math.abs(stock - goods.value) > goods.slack + 50) E.fail(`${outpost}_selected_${goods.name}_${goods.text}_but_stock_${stock}`);
     const target = Math.min(max, stock - KEEP);
-    if (target < 1) { t.note(`${name}: nothing to sell (goods ${stock}, keep ${KEEP}, tradable now ${max})`); return; }
+    if (target < MIN_SHARES) {
+      t.note(`${outpost} ${goods?.name || 'current goods'}: below ${MIN_SHARES} to sell (goods ${stock}, tradable now ${max})`);
+      return stock - KEEP >= MIN_SHARES ? 'reserve' : 'small';
+    }
     await setShares(target);
     const set = await E.look();
     E.guardSpend(set);
-    const ready = await t.save(set.frame, `outpost${index + 1}-shares`);
+    const ready = await t.save(set.frame, `${label}-shares`);
     // The outpost keeps producing 调度券 and goods, so reconcile against this frame.
     const stockReady = await number(set.frame, STOCK), reserveReady = await number(set.frame, RESERVE);
-    if (stockReady === null || reserveReady === null) E.fail(`${name}_unread_before_trade`);
-    if (stockReady - target < KEEP) E.fail(`${name}_would_keep_${stockReady - target}`);
+    if (stockReady === null) E.fail(`${outpost}_unread_before_trade`);
+    if (stockReady - target < KEEP) E.fail(`${outpost}_would_keep_${stockReady - target}`);
     const trade = E.find(set.texts, /^交易$/, [0.8, 0.88, 0.2, 0.1]);
-    if (!trade) E.fail(`${name}_without_交易`);
+    if (!trade) E.fail(`${outpost}_without_交易`);
     await E.click(...E.center(trade));
     const result = await E.waitFor('reward', { timeout: 10000 });
-    const receipt = await t.save(result.frame, `outpost${index + 1}-result`);
+    const receipt = await t.save(result.frame, `${label}-result`);
     const received = await E.reward.read(result);
     await E.reward.confirm();
     const after = await E.waitFor('outposts', { timeout: 10000 });
-    const done = await t.save(after.frame, `outpost${index + 1}-after`);
+    const done = await t.save(after.frame, `${label}-after`);
     const stockAfter = await number(after.frame, STOCK), reserveAfter = await number(after.frame, RESERVE);
-    if (stockAfter === null || reserveAfter === null) E.fail(`${name}_unread_after`);
-    // Goods drop by the shares (plus a little production) and the receipt's base tile
+    if (stockAfter === null) E.fail(`${outpost}_unread_after`);
+    // An emptied reserve shows a lone red "0" that OCR may miss; the receipt and the
+    // goods are the strict checks.
+    if (reserveAfter === null) t.note(`${outpost}: reserve after trade unread`);
+    // Goods drop by the shares plus production meanwhile (赤铜零件 went 100 → 433 in
+    // about 2.5 min, 2026-10-22), and the receipt's base tile
     // pays shares × price. The reserve display moves in production ticks (~700 seen
     // 2026-10-22: 180975 − 29×54 = 179409 exactly once, +713 off another time), so it
     // is checked loosely.
     const paid = target * price;
-    if (stockAfter < KEEP || stockAfter > stockReady - target + 10) E.fail(`${name}_stock_${stockReady}_sold_${target}_read_${stockAfter}`);
+    if (stockAfter < KEEP || stockAfter > stockReady - target + 300) E.fail(`${outpost}_stock_${stockReady}_sold_${target}_read_${stockAfter}`);
     const base = received[0];
-    if (!base || (base.count === null && !base.text)) E.fail(`${name}_receipt_unread`);
-    if (base.count !== null && base.count !== paid) E.fail(`${name}_receipt_${base.count}_expected_${paid}`);
-    if (base.count === null && Math.abs(parseFloat(base.text) * 10000 - paid) > 10000) E.fail(`${name}_receipt_${base.text}_expected_${paid}`);
-    if (reserveAfter < reserveReady - paid || reserveAfter > reserveReady - paid + 1500)
-      E.fail(`${name}_reserve_${reserveReady}_minus_${paid}_read_${reserveAfter}`);
-    t.change({ what: `${name} 据点交易`, goods: { before: stockReady, after: stockAfter }, shares: target, price,
-      outpostReserve: { before: reserveReady, after: reserveAfter }, received, frames: [before, ready, receipt, done] });
+    if (!base || (base.count === null && !base.text)) E.fail(`${outpost}_receipt_unread`);
+    if (base.count !== null && base.count !== paid) E.fail(`${outpost}_receipt_${base.count}_expected_${paid}`);
+    if (base.count === null && Math.abs(parseFloat(base.text) * 10000 - paid) > 10000) E.fail(`${outpost}_receipt_${base.text}_expected_${paid}`);
+    if (reserveReady !== null && reserveAfter !== null && (reserveAfter < reserveReady - paid || reserveAfter > reserveReady - paid + 1500))
+      E.fail(`${outpost}_reserve_${reserveReady}_minus_${paid}_read_${reserveAfter}`);
+    t.change({ what: `${outpost} 据点交易`, goods: goods?.name || 'current', stock: { before: stockReady, after: stockAfter },
+      shares: target, price, outpostReserve: { before: reserveReady, after: reserveAfter }, received, frames: [before, ready, receipt, done] });
+    return target === max && stockAfter - KEEP >= MIN_SHARES ? 'reserve' : 'traded';
+  }
+
+  let outpostCount = 0;
+  async function tradeOutpost(t, region, index) {
+    await E.click(...TABS[index]);
+    await E.sleep(1200);
+    const look = await E.waitFor('outposts');
+    const outpost = E.find(look.texts, /^[\u4e00-\u9fa5]{3,}$/, [0.15, 0.22, 0.3, 0.08])?.text || `outpost${index + 1}`;
+    const n = ++outpostCount;
+    const tried = new Set();
+    for (let round = 1; round <= 6; round++) {
+      const goods = await chooseGoods(t, region, `o${n}r${round}`, tried);
+      if (!goods) return;
+      tried.add(goods.name);
+      const outcome = await tradeSelected(t, outpost, `o${n}r${round}`, goods);
+      if (outcome === 'reserve') return;
+    }
+  }
+
+  const REGIONS = ['武陵', '四号谷地'];
+  const REGION_NAME = [0.07, 0.23, 0.15, 0.08];
+  const REGION_SWITCH = px(92, 318);
+  const regionName = look => REGIONS.find(r => look.has(r, REGION_NAME)) || null;
+
+  // On the 地区建设 screen: open the picker, choose `target`, confirm.
+  async function switchRegion(target) {
+    await E.click(...REGION_SWITCH);
+    await E.sleep(1200);
+    let look = await E.look();
+    const card = E.find(look.texts, new RegExp(`${target}$`), [0.3, 0.28, 0.4, 0.06]);
+    if (!card) E.fail(`region_picker_without_${target}`);
+    await E.click(...E.center(card));
+    await E.sleep(800);
+    look = await E.look();
+    const confirm = E.find(look.texts, /^确认$/, [0.45, 0.55, 0.25, 0.1]);
+    if (!confirm) E.fail('region_picker_without_确认');
+    await E.click(...E.center(confirm));
+    for (let i = 0; i < 20; i++) {
+      await E.sleep(500);
+      look = await E.look();
+      if (look.screen === 'region' && regionName(look) === target) return look;
+    }
+    E.fail(`region_not_switched_to_${target}`);
   }
 
   E.task('outpost_trading', {
@@ -99,12 +226,19 @@
       const entry = E.find(menu.texts, '地区建设');
       if (!entry) E.fail('menu_without_地区建设');
       await E.click(...E.center(entry));
-      const region = await E.waitFor('region', { timeout: 10000 });
-      await t.save(region.frame, 'region');
-      await E.click(...E.center(E.find(region.texts, '据点管理')));
-      const first = await E.waitFor('outposts', { timeout: 10000 });
-      const tabs = TABS.filter(([x, y]) => E.find(first.texts, /\S{3,}/, [x - 0.05, y - 0.04, 0.2, 0.06]));
-      for (let i = 0; i < tabs.length; i++) await tradeOutpost(t, i);
+      let region = await E.waitFor('region', { timeout: 10000 });
+      const first = regionName(region);
+      if (!first) E.fail('region_name_unread');
+      for (const name of [first, ...REGIONS.filter(r => r !== first)]) {
+        if (regionName(region) !== name) region = await switchRegion(name);
+        await t.save(region.frame, `region-${name === '武陵' ? 'wuling' : 'valley'}`);
+        await E.click(...E.center(E.find(region.texts, '据点管理')));
+        const outposts = await E.waitFor('outposts', { timeout: 10000 });
+        const tabs = TABS.filter(([x, y]) => E.find(outposts.texts, /\S{3,}/, [x - 0.05, y - 0.04, 0.2, 0.06]));
+        for (let i = 0; i < tabs.length; i++) await tradeOutpost(t, name, i);
+        await E.key('Escape');
+        region = await E.waitFor('region', { timeout: 10000 });
+      }
       if (!t.changes.length) return t.skip('no outpost had goods above 100');
       return t.pass(`traded at ${t.changes.length} outpost(s)`);
     }

@@ -12,7 +12,9 @@
   // themselves and must not burn Escapes. The title shows the age rating too, so
   // this ranks below it.
   E.screen('boot', look => look.texts.length === 0 || look.has(/HYPERGRYPH|游戏前请详细阅读|适合年满|适龄提示|CADPA/), 60);
-  E.screen('title', look => look.has('点击任意位置继续', [0.5, 0.4, 0.5, 0.25]), 90);
+  // The prompt pulses and some frames miss it; the build string ("CN_WIN_REL 1.6.3 …")
+  // shows only on the title, not on the boot splashes.
+  E.screen('title', look => look.has('点击任意位置继续', [0.5, 0.4, 0.5, 0.25]) || look.has(/WIN.?REL/), 90);
   // Full-screen notices that close on a click and show the hint in the lower half,
   // e.g. the daily 月卡 reward after login ("- 点击确认今日月卡奖励 -"); Esc does
   // not close it. They only hand out items.
@@ -36,8 +38,16 @@
       for (const name of E.findAll(look.texts, /\S/, REWARD_NAMES)) {
         const [cx] = E.center(name);
         const roi = [cx - 0.02, name.y - 0.046, 0.04, 0.035];
-        // Large counts carry a unit ("110万"); keep the text next to the number.
-        const unit = E.find(look.texts, /\d+(\.\d+)?万/, [roi[0] - 0.01, roi[1], roi[2] + 0.02, roi[3]]);
+        // Large counts carry a unit ("110万"); keep the text next to the number. Read
+        // the crop itself: full-frame OCR missed a "1万" tile (2026-10-22).
+        const wide = [roi[0] - 0.01, roi[1], roi[2] + 0.02, roi[3]];
+        let unit = E.find(look.texts, /\d+(\.\d+)?万/, wide);
+        for (const scale of [4, 3]) {
+          if (unit) break;
+          const joined = (await E.ocr(look.frame, wide, { scale, digits: true })).map(t => t.text).join('');
+          const match = joined.match(/\d+(\.\d+)?万/);
+          if (match) unit = { text: match[0] };
+        }
         items.push({ name: name.text, count: unit ? null : await E.readNumber(look.frame, roi), text: unit?.text });
       }
       return items;
