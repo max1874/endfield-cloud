@@ -100,6 +100,11 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 - 会客室 clues (Max, 2026-10-22): keep 1 of every clue type, give all extra ones to
   friends with no limit on gifts, and start 线索交流 whenever it can start. Runs
   before 信用点购物 (gifts pay 信用).
+- 信用点购物 (Max, 2026-10-22): collect pending 信用 first; buy only goods at 75% off,
+  plus 嵌晶玉 and 武库配额 (Max: "武器配额") at any discount. These are paid with 信用,
+  so the 嵌晶玉 guard lets them through in this shop only. Spend the remaining 信用 on
+  refreshes, buying by the same rule after each, until a refresh is unaffordable or
+  none are left.
 - Never drag item contents (warehouse/backpack); never delete, decompose or sell
   anything Max has not configured.
 - If Max plays and consumes a daily state, that task waits for the next reset.
@@ -127,6 +132,7 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 | 据点交易 (`outpost_trading`) | partial | bundled build run `20261022-130107-rl22` passed at all 6 outposts with the shared region navigation (武陵 优质芽针针剂; 四号谷地 高容谷地电池 only; reserves emptied, goods kept far above 100). Earlier: goods chosen by stock through 更换货品 (`20261022-111235-9p2j`), tooltip covering 确认 fixed (`20261022-114544-ptau`). Before the 四号谷地 allowlist, runs also sold 荞愈胶囊 1460, 铁制零件 34360 (→ 100), 紫晶质瓶 1472 |
 | 弹性物资囤货 (`stockpile`) | partial | 四号谷地 run `20261022-121906-ynnh` passed (hot-loaded source): quota 320 → 0, 硬脑壳头盔货组 ×320 at 394 (lowest of 12), owned 640 → 960, balance 11362821 → 11236741 = −126080, 购买成功 receipt 320. 武陵 bought by run `20261022-121606-83ao` (天师龙泡泡货组 ×230 at 1083, 购买成功 shows 230) which then failed on the then-unknown 购买成功 screen before its checks; `quota already used` path seen. bundled build run `20261022-130107-rl22`: both regions read quota 0 → `nothing_to_do`. Next: tomorrow's purchase through the bundled build |
 | 会客室 线索赠予/交流 (`clue_exchange`) | partial | one gift by hand 2026-10-22 12:53 (寂语修会的线索 05: stock 2 → 1, 获得奖励 信用 40, 信用 148 → 188); task's `nothing_to_do` live (`20261022-125737-c4ol`: all 7 types read, 3 at 1, 4 greyed at 0; 线索交流 running, 03:53:50 left). 快速赠予重复线索 stayed disabled with a duplicate. Next: gift path through the task when a type reaches 2; start 线索交流 after the current one ends (~16:50) |
+| 信用点购物 (`credit_shop`) | partial | hot-loaded runs 2026-10-22: 收取信用 through the task in run `20261022-141756-5l6m` (获得奖励 信用 360, 188 → 548; then failed on the unknown 无待领取信用 state, now recognized); `-141937-4qqb` bought both −75% cards (折金票 ×2000 for 35: 548 → 513; 武器检查单元 ×30 for 22: 513 → 491); `-142237-upa1` refreshed (80: 491 → 411, 次数 4 → 3) and bought the new −75% 折金票 (411 → 376); `-142427-298f` passed: 嵌晶玉 ×25 at −25% for 300 信用 (376 → 76; 嵌晶玉 23735 → 23760 on the menu), then stopped at refresh cost 120 > 76. bundled build run `20261022-142628-rr5m` (session start → credit_shop → clue_exchange → session exit): `nothing_to_do`, refresh 120 > 信用 76. Next: collect and purchase paths through the bundled build after the 04:00 reset |
 | 模拟空间奖励 | nothing to claim | 行动手册 → 模拟: 四号谷地 26/26, 武陵 23/23 complete (2026-10-22); revisit when a game update adds simulations |
 | 资源回收站 | deferred | low priority (Max) |
 | Other Phase 1–4 tasks | not started | |

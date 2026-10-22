@@ -335,8 +335,10 @@
   // counts only on its own or with a count: place names such as the outpost
   // location 源石研究园 contain it (blocked a trade 2026-10-22).
   E.PREMIUM = /衍质源石|至纯源石|嵌晶玉|^源石\s*([×xX]?\s*\d+)?$/;
-  E.guardSpend = look => {
-    const hit = look.texts.find(t => E.PREMIUM.test(t.text));
+  // `ignore`: regions whose texts may name a premium item that is itself the goods,
+  // bought with another currency (嵌晶玉 in the 信用交易所); never the price.
+  E.guardSpend = (look, { ignore = [] } = {}) => {
+    const hit = look.texts.find(t => E.PREMIUM.test(t.text) && !ignore.some(roi => inside(t, roi)));
     if (hit) E.block(`premium_currency_on_screen:${hit.text}`);
   };
 })();
