@@ -43,8 +43,21 @@ Recognition templates are captured from our own stream.
   even with occlusion detection off, and the cloud page then refuses to start a
   session; `native/visibility.js` makes the page read itself as visible. A page
   instance that has never rendered since launch (displays asleep) gets no
-  animation frames at all, so the home page's start flow stalls: an unattended run
-  needs a display awake. Waking the display is Max's decision (GOAL.md).
+  animation frames at all, so the home page's start flow stalls. An instance that
+  rendered once keeps working after the displays sleep: on 2026-10-22 an instance
+  launched at 09:08 (displays on) ran three cold start → selftest → exit cycles at
+  09:31–09:34 with the displays off since 09:20, while an instance launched at 09:35
+  with the displays off stalled at 开始游戏 with the same code. So unattended runs
+  need the app opened while a display is on and kept open; waking the display is
+  Max's decision (GOAL.md).
+- Session controls on the page (verified from the engine world 2026-10-22): while a
+  session connects, `#WelinkGameVideo` exists with `readyState` 0 and the home
+  page's 开始游戏 stays laid out underneath; pressing it again then ends the new
+  session and triggers the cooldown. The edge-docked 游戏菜单 slides in only on
+  `pointerover`/`mouseover` (a bare `mouseenter` does nothing); 退出游戏 is a
+  button with that aria-label inside it.
+- After login the game may show full-screen notices that Esc does not close, such
+  as the daily 月卡 reward ("点击确认今日月卡奖励"); navigation clicks their hint.
 - Debug builds poll `~/Library/Application Support/local.endfield.cloud.prototype/dev-inbox/`:
   `NAME.js` runs in the game page as an async function body and its result lands in
   `dev-outbox/NAME.json` (or `NAME.png` for a PNG data URL). Use it to drive input

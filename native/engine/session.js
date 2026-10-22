@@ -25,26 +25,34 @@
       if (context.test(p.innerText)) return true;
     return false;
   }) || null;
-  const labeled = pattern => [...document.querySelectorAll('button')].find(b => pattern.test(b.getAttribute('aria-label') || '')) || null;
+  const labeled = pattern => [...document.querySelectorAll('button')].find(b => pattern.test(b.getAttribute('aria-label') || '') && shown(b)) || null;
   const shownText = pattern => [...document.querySelectorAll('body *')]
     .some(e => e.childElementCount === 0 && pattern.test(e.textContent) && shown(e));
+  const video = () => document.getElementById('WelinkGameVideo');
   const streaming = () => {
-    const v = document.getElementById('WelinkGameVideo');
+    const v = video();
     return v instanceof HTMLVideoElement && v.readyState >= 2 && v.videoWidth > 0;
   };
+  const startButtons = () => [...document.querySelectorAll('button')].filter(b => b.innerText.trim() === '开始游戏' && shown(b));
   // Server-side conditions that clear by themselves (AGENTS.md, "Runtime").
   const RETRYABLE = /火速处理中|排队超时/;
 
   E.session = {
     streaming,
+    // While a session connects, the video element exists but plays nothing and the
+    // home page's 开始游戏 stays laid out underneath; pressing it then ends the new
+    // session and triggers the server cooldown (observed 2026-10-22 09:08).
     state() {
       if (streaming()) return 'streaming';
       if (shownText(RETRYABLE)) return 'retry_later';
-      if (button('开始游戏')) return 'home';
+      if (video()) return 'connecting';
+      if (startButtons().length) return 'home';
       return 'other';
     },
     // Start a session and wait until the stream is playing. The home page may need
-    // two presses: the first can reveal the account panel with its own 开始游戏.
+    // two presses: the first can reveal the account panel with its own 开始游戏, which
+    // comes after the hero's in the DOM. After a press, wait for the page to react
+    // before pressing again; the button throttles and a repeat can restart the session.
     async start({ timeout = 8 * 60000 } = {}) {
       const begin = performance.now();
       let presses = 0;
@@ -56,10 +64,13 @@
           button('知道了')?.click();
           await E.sleep(20000);
         } else if (state === 'home') {
+          const buttons = startButtons();
           presses++;
-          E.log(`session press 开始游戏 ${presses}`);
-          button('开始游戏').click();
-          await E.sleep(6000);
+          E.log(`session press 开始游戏 ${presses} of ${buttons.length}`);
+          buttons[buttons.length - 1].click();
+          const pressed = performance.now();
+          while (performance.now() - pressed < 20000 && this.state() === 'home' && startButtons().length === buttons.length)
+            await E.sleep(500);
         } else {
           await E.sleep(1000);
         }
@@ -67,16 +78,22 @@
       E.fail('session_start_timeout');
     },
     // Leave the cloud session so it stops using play time: open the edge-docked game
-    // menu (it expands on hover), press 退出游戏, confirm.
+    // menu (it slides in on hover; the page's handlers listen to pointerover/mouseover,
+    // so a bare mouseenter does nothing), press 退出游戏, confirm.
     async exit() {
       if (!streaming()) return false;
       const menu = labeled(/^游戏菜单$/);
       if (!menu) E.fail('session_menu_missing');
-      menu.parentElement.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
+      const host = menu.parentElement, r = menu.getBoundingClientRect();
+      const at = { clientX: r.x + r.width - 5, clientY: r.y + r.height / 2, bubbles: true };
+      host.dispatchEvent(new PointerEvent('pointerover', at));
+      host.dispatchEvent(new PointerEvent('pointerenter', { ...at, bubbles: false }));
+      host.dispatchEvent(new MouseEvent('mouseover', at));
+      host.dispatchEvent(new MouseEvent('mouseenter', { ...at, bubbles: false }));
       await E.sleep(800);
       menu.click();
-      await E.sleep(1000);
-      const exit = labeled(/退出游戏/);
+      let exit = null;
+      for (let i = 0; i < 10 && !(exit = labeled(/^退出游戏$/)); i++) await E.sleep(300);
       if (!exit) E.fail('session_exit_missing');
       exit.click();
       await E.sleep(1500);

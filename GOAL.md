@@ -105,10 +105,10 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 | Spike 3 capture/OCR timing | done | `AGENTS.md` "Input facts" |
 | Spike 4 template/number OCR robustness | not started | |
 | Engine core (JS in isolated world, OCR bridge, evidence, runner) | in-app selftest passed | run `20261021-164204-66t1` (title → world → menu → settings → world), screen locked, session already streaming |
-| E1 session start/exit | changed, unverified in engine | DOM presses verified from the page world 2026-10-22 00:40; engine `session.js` never completed a start (displays asleep, see AGENTS.md) |
-| E1 unattended with displays asleep | blocked: needs Max | waking the display during runs is his call |
+| E1 session start/exit | done (hot-loaded sources); bundled build not yet run with a display on | 3 consecutive cold starts (cooldown retry included) → title → 月卡 notice/world → selftest passed → session exited: runs `20261022-093105-tn6j`, `-093208-aqib`, `-093330-ly2e`; failure path seen (`nav_world_timeout`, `session_start_timeout`) |
+| E1 unattended with displays asleep | blocked: needs Max | works if the app was opened with a display on and stays open (AGENTS.md "Screen lock"); a launch while displays sleep stalls. Keep-open vs waking the display is his call |
 | E2 input layer | partial | key, click with deltas, Alt+click, drag implemented; Alt+click and drag not yet exercised through the engine |
 | E3 recognition | partial | world/menu/settings/title/loading fingerprints; ESC-label template; NCC matching and number OCR untested on varied frames |
-| E4 navigation | partial | nav to world from title/menu/settings observed |
+| E4 navigation | partial | nav to world from boot splash/title/月卡 notice/menu/settings observed |
 | E5 runner/UI | partial | menu run/stop, per-task evidence, summary; no task options UI, no scheduler |
 | Phase 1–4 tasks | not started | |

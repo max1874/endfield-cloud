@@ -7,7 +7,18 @@
   const MENU_LABELS = ['干员', '行动手册', '好友', '贵重品库', '采购中心', '地区建设', '装备加工', '档案库'];
 
   E.screen('loading', look => look.has('LOADING'), 100);
+  // The game's boot splashes (publisher, health and photosensitivity notices, age
+  // rating) and the black frames between them come before the title; they pass by
+  // themselves and must not burn Escapes. The title shows the age rating too, so
+  // this ranks below it.
+  E.screen('boot', look => look.texts.length === 0 || look.has(/HYPERGRYPH|游戏前请详细阅读|适合年满|适龄提示|CADPA/), 60);
   E.screen('title', look => look.has('点击任意位置继续', [0.5, 0.4, 0.5, 0.25]), 90);
+  // Full-screen notices that close on a click and show the hint in the lower half,
+  // e.g. the daily 月卡 reward after login ("- 点击确认今日月卡奖励 -"); Esc does
+  // not close it. They only hand out items.
+  const TAP_HINT = /点击(确认|任意位置|空白处)/;
+  const TAP_REGION = [0.15, 0.55, 0.7, 0.4];
+  E.screen('tap_notice', look => look.has(TAP_HINT, TAP_REGION), 85);
   E.screen('menu', look => MENU_LABELS.filter(label => look.has(label)).length >= 3, 80);
   E.screen('settings', look => look.has('设置', [0, 0, 0.12, 0.07]), 70);
   // In the world the top-right key hints are drawn on dark label boxes, so the ESC
@@ -39,17 +50,24 @@
       if (streak < 2) { await E.sleep(200); continue; }
       switch (look.screen) {
         case 'world': return look;
-        case 'loading': await E.sleep(1000); break;
+        case 'loading': case 'boot': await E.sleep(1000); break;
         case 'title':
           E.log('nav title -> click');
           await E.click(0.5, 0.6);
           await E.sleep(3000);
           break;
+        case 'tap_notice': {
+          const hint = E.find(look.texts, TAP_HINT, TAP_REGION);
+          E.log(`nav tap_notice "${hint.text}" -> click`);
+          await E.click(...E.center(hint));
+          await E.sleep(1500);
+          break;
+        }
         default:
           // Esc closes every panel and dialog we know; on an unknown screen it is the
           // safest generic action. Too many in a row means we are stuck.
           if (++escapes > 8) throw new E.EngineError('timeout', `nav_stuck_on_${look.screen}`, { look });
-          E.log(`nav ${look.screen} -> Escape`);
+          E.log(`nav ${look.screen} -> Escape texts=${look.texts.slice(0, 8).map(x => x.text).join('|')}`);
           await E.key('Escape');
           await E.sleep(700);
       }
