@@ -44,19 +44,21 @@ static NSData *DecodeImage(id value) {
     return data.length > 0 && data.length <= 32 * 1024 * 1024 ? data : nil;
 }
 
-// `digits` is for small crops holding one number (item counts). Measured 2026-10-22 on
-// reward tiles: revision 3 read a lone "60" as upside-down "09" in half the crops, and
-// colored crops often lost single digits; a desaturated crop read with revision 2 got
-// 36 of 36 right.
+// Revision 2 throughout. Revision 3 guesses text orientation: it read a lone "60" as
+// upside-down "09", and on some full frames it took the whole screen as rotated
+// (7 consecutive looks of a static 地区建设 screen, 2026-10-22). On eight saved game
+// frames revision 2 returned every text revision 3 did. `digits` is for small crops
+// holding one number (item counts): colored crops often lost single digits, a
+// desaturated one got 36 of 36 right.
 static NSArray *RecognizeText(NSData *image, BOOL fast, BOOL digits, NSError **error) {
     VNRecognizeTextRequest *request = [VNRecognizeTextRequest new];
+    request.revision = VNRecognizeTextRequestRevision2;
     request.recognitionLevel = fast ? VNRequestTextRecognitionLevelFast : VNRequestTextRecognitionLevelAccurate;
     request.minimumTextHeight = 0.005;
     request.recognitionLanguages = @[@"zh-Hans", @"en-US"];
     request.usesLanguageCorrection = NO;
     VNImageRequestHandler *handler;
     if (digits) {
-        request.revision = VNRecognizeTextRequestRevision2;
         CIImage *gray = [[CIImage imageWithData:image] imageByApplyingFilter:@"CIColorControls"
                                                          withInputParameters:@{kCIInputSaturationKey: @0}];
         handler = [[VNImageRequestHandler alloc] initWithCIImage:gray options:@{}];

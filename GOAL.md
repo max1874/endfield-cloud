@@ -116,4 +116,5 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 | 日常奖励 · 邮件 (`mail_claim`) | partial | `nothing_to_do` live (`20261022-100935-uu8k`); claim path waits for mail with attachments |
 | 日常奖励 · 转交委托/通行证/活动 | not started | |
 | 简制手册 (`prod_manual`) | partial | navigation 背包 → 简易制作 → 简制手册 → first item and back observed; `nothing_to_do` live (`20261022-101138-xr9z`); 一键领取 path (from MaaEnd's flow) not yet seen on our stream |
+| 据点交易 (`outpost_trading`) | partial | 武陵: run `20261022-102629-tbft` passed at 3 outposts, receipts = shares × price (1350; 58.9万; 67.6万), goods kept ≥ 100 (113, 112; 26061 where the outpost reserve ran out), 调度券 184万 → 254万 in frames. Next: 四号谷地 via region switch; 更换货品 when the selected goods are at 100 |
 | Other Phase 1–4 tasks | not started | |

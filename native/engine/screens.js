@@ -26,14 +26,19 @@
   // under it) and a confirm check at the bottom. Seen after 基建 collection and
   // 行动手册 milestones.
   const REWARD_NAMES = [0.1, 0.55, 0.8, 0.06];
-  // The mailbox's variant is titled 邮箱奖励 (MaaEnd's strings; not yet seen here).
-  E.screen('reward', look => look.has(/获得奖励|邮箱奖励/, [0.3, 0.09, 0.4, 0.07]), 76);
+  // Same layout under other titles: 据点交易 (trade result, counts like "110万"); the
+  // mailbox's 邮箱奖励 comes from MaaEnd's strings and is not yet seen here. Esc does
+  // not close these.
+  E.screen('reward', look => look.has(/获得奖励|邮箱奖励|据点交易/, [0.3, 0.09, 0.4, 0.07]), 76);
   E.reward = {
     async read(look) {
       const items = [];
       for (const name of E.findAll(look.texts, /\S/, REWARD_NAMES)) {
         const [cx] = E.center(name);
-        items.push({ name: name.text, count: await E.readNumber(look.frame, [cx - 0.02, name.y - 0.046, 0.04, 0.035]) });
+        const roi = [cx - 0.02, name.y - 0.046, 0.04, 0.035];
+        // Large counts carry a unit ("110万"); keep the text next to the number.
+        const unit = E.find(look.texts, /\d+(\.\d+)?万/, [roi[0] - 0.01, roi[1], roi[2] + 0.02, roi[3]]);
+        items.push({ name: name.text, count: unit ? null : await E.readNumber(look.frame, roi), text: unit?.text });
       }
       return items;
     },
@@ -82,6 +87,10 @@
           E.log('nav title -> click');
           await E.click(0.5, 0.6);
           await E.sleep(3000);
+          break;
+        case 'reward':
+          E.log('nav reward -> confirm');
+          await E.reward.confirm();
           break;
         case 'tap_notice': {
           const hint = E.find(look.texts, TAP_HINT, TAP_REGION);
