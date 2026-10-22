@@ -300,6 +300,23 @@
     cursor = to;
   };
   E.move = async (x, y, options) => { if (!valid([x, y])) E.fail('invalid_position'); await travel(prepare(), [x, y], options); };
+  // Turn the world camera by relative mouse motion (dx, dy in screen widths/heights)
+  // without moving the cursor: moves at a fixed point that carry only movementX/Y.
+  // At the app's default mouse sensitivity (8) a full turn is about 5.3 widths;
+  // positive dy looks down.
+  E.turn = async (dx, dy = 0, { ms = 300 } = {}) => {
+    const v = prepare(), r = v.getBoundingClientRect();
+    const total = [dx * r.width, dy * r.height];
+    const steps = Math.max(2, Math.min(24, Math.round(Math.hypot(...total) / 25)));
+    for (let i = 0; i < steps; i++) {
+      mouse(v, 'mousemove', cursor, 0, [Math.round(total[0] / steps), Math.round(total[1] / steps)]);
+      await E.sleep(ms / steps);
+    }
+  };
+  E.wheel = async deltaY => {
+    const v = prepare(), p = point(v, cursor);
+    v.dispatchEvent(new WheelEvent('wheel', { deltaY, deltaMode: 0, clientX: p.clientX, clientY: p.clientY, bubbles: true, cancelable: true }));
+  };
   // Park the cursor where it does not cover or tilt the UI (the main menu has a
   // cursor parallax), then let the screen settle.
   E.park = async ({ at = [0.5, 0.5], settle = 400 } = {}) => { await E.move(...at); await E.sleep(settle); };
