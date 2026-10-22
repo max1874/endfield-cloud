@@ -122,6 +122,9 @@
 
   // ---- navigation ----------------------------------------------------------------
   E.nav = {
+    // Screens Esc does not close, by name: an async look => void that closes them.
+    // Tasks register their own.
+    dismiss: {},
     // Bring the game to `target` ('world', 'menu' or 'none') from any known screen.
     async to(target, t) {
       if (target === 'none') return null;
@@ -165,6 +168,12 @@
           break;
         }
         default:
+          if (E.nav.dismiss[look.screen]) {
+            E.log(`nav ${look.screen} -> dismiss`);
+            await E.nav.dismiss[look.screen](look);
+            await E.sleep(700);
+            break;
+          }
           // Esc closes every panel and dialog we know; on an unknown screen it is the
           // safest generic action. Too many in a row means we are stuck.
           if (++escapes > 8) throw new E.EngineError('timeout', `nav_stuck_on_${look.screen}`, { look });

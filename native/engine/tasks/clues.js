@@ -22,6 +22,16 @@
 
   E.screen('reception', look => look.has(/会客室$/, [0, 0, 0.2, 0.07]) && look.has('线索库', SIDE), 75);
   E.screen('clue_send', look => look.has('赠予自有线索', [0.05, 0, 0.25, 0.07]), 76);
+  // After a 线索交流 ends, entering 会客室 first shows its result: 额外奖励 信用 N, the
+  // friends who joined, and 确认 (2026-10-22 16:52).
+  E.screen('exchange_done', look => look.has('情报交流结束', [0.3, 0.12, 0.4, 0.08]), 77);
+  const closeResult = async look => {
+    const confirm = E.find(look.texts, /^确认/, [0.4, 0.86, 0.2, 0.08]);
+    if (!confirm) E.fail('exchange_done_without_确认');
+    await E.click(...E.center(confirm));
+  };
+  // Esc does not close it; navigation confirms it too.
+  E.nav.dismiss.exchange_done = closeResult;
 
   const credits = look => {
     const m = look.texts.map(t => t.text).join(' ').match(CREDITS);
@@ -116,6 +126,11 @@
       return t.note(`线索交流 in progress${timer ? `, ${timer} left` : ''}`);
     }
     const start = E.find(look.texts, '开始线索交流');
+    // The board needs all 7 types placed: "集齐所有线索可开展情报交流".
+    if (!start && look.has('集齐所有线索')) {
+      await t.save(look.frame, 'exchange-board-incomplete');
+      return t.note('线索交流 needs all 7 clue types on the board');
+    }
     if (!start) {
       await t.save(look.frame, 'exchange-unavailable');
       return t.note('线索交流 neither running nor startable (board incomplete?)');
@@ -144,11 +159,18 @@
       const room = E.find(nexus.texts, /^会客室$/, ROOM_ON_MAP);
       if (!room) E.fail('nexus_without_会客室');
       await E.click(...E.center(room));
-      const reception = await E.waitFor('reception', { timeout: 10000 });
+      let reception = await E.waitFor(['reception', 'exchange_done'], { timeout: 10000 });
+      if (reception.screen === 'exchange_done') {
+        const shown = await t.save(reception.frame, 'exchange-done');
+        const paid = await E.readNumber(reception.frame, [0.706, 0.305, 0.03, 0.045]);
+        await closeResult(reception);
+        reception = await E.waitFor('reception', { timeout: 10000 });
+        t.change({ what: '线索交流结束', paid, frames: [shown, await t.save(reception.frame, 'exchange-done-after')] });
+      }
       await t.save(reception.frame, 'reception');
       await giveExtras(t);
       await exchange(t);
-      if (!t.changes.length) return t.skip('no extra clues and 线索交流 already running');
+      if (!t.changes.length) return t.skip('no extra clues, 线索交流 running or not startable');
       return t.pass(`${t.changes.length} change(s)`);
     }
   });
