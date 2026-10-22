@@ -115,4 +115,5 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 | 日常奖励 · 行动手册日常 (`daily_tasks`) | partial | flow seen by hand 2026-10-22 10:05 (one 领取 claimed 2 rows, 活跃度 0 → 40; milestone 20 claimed 20+40 together, 获得奖励); task's `nothing_to_do` live with 活跃度 read 40 (`20261022-100757-v6t5`). Next: claim path through the task after the 04:00 reset |
 | 日常奖励 · 邮件 (`mail_claim`) | partial | `nothing_to_do` live (`20261022-100935-uu8k`); claim path waits for mail with attachments |
 | 日常奖励 · 转交委托/通行证/活动 | not started | |
+| 简制手册 (`prod_manual`) | partial | navigation 背包 → 简易制作 → 简制手册 → first item and back observed; `nothing_to_do` live (`20261022-101138-xr9z`); 一键领取 path (from MaaEnd's flow) not yet seen on our stream |
 | Other Phase 1–4 tasks | not started | |
