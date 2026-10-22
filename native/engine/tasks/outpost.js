@@ -106,10 +106,20 @@
     const button = E.find(look.texts, new RegExp(`^[^\u4e00-\u9fa5]*${pick.name}$`));
     if (!button) E.fail(`goods_${pick.name}_not_visible`);
     await E.click(...E.center(button));
-    await E.sleep(600);
-    look = await E.look();
-    await t.save(look.frame, `${label}-goods-${ranked.indexOf(pick) + 1}`);
-    const confirm = E.find(look.texts, /^确认$/, [0.7, 0.75, 0.3, 0.12]);
+    // Selecting a card sometimes opens its item tooltip, which covers 确认 and stays
+    // open when the pointer leaves (2026-10-22). Clicking the dialog's empty title
+    // bar is tried to close it.
+    await E.park({ at: [0.5, 0.185], settle: 600 });
+    let confirm = null;
+    for (let attempt = 0; attempt < 3 && !confirm; attempt++) {
+      if (attempt) {
+        await E.click(0.5, 0.185);
+        await E.sleep(800);
+      }
+      look = await E.look();
+      await t.save(look.frame, `${label}-goods-${ranked.indexOf(pick) + 1}${attempt ? `-${attempt}` : ''}`);
+      if (!look.has(pick.name, [0.62, 0.38, 0.25, 0.07]) && !look.has('获取方式')) confirm = E.find(look.texts, /^确认$/, [0.7, 0.75, 0.3, 0.12]);
+    }
     if (!confirm) E.fail('goods_list_without_确认');
     await E.click(...E.center(confirm));
     await E.waitFor('outposts', { timeout: 10000 });
