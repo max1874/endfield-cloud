@@ -97,6 +97,9 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 - 弹性物资囤货 spends the whole daily purchase quota (剩余可购买数量) in each region
   on the goods with the lowest price in 市场 that day (Max, 2026-10-22).
 - 资源回收站 (远程收取资源) is low priority (Max, 2026-10-22).
+- 会客室 clues (Max, 2026-10-22): keep 1 of every clue type, give all extra ones to
+  friends with no limit on gifts, and start 线索交流 whenever it can start. Runs
+  before 信用点购物 (gifts pay 信用).
 - Never drag item contents (warehouse/backpack); never delete, decompose or sell
   anything Max has not configured.
 - If Max plays and consumes a daily state, that task waits for the next reset.
@@ -123,6 +126,7 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 | 简制手册 (`prod_manual`) | partial | navigation 背包 → 简易制作 → 简制手册 → first item and back observed; `nothing_to_do` live (`20261022-101138-xr9z`); 一键领取 path (from MaaEnd's flow) not yet seen on our stream |
 | 据点交易 (`outpost_trading`) | partial | both regions, 6 outposts, goods chosen by stock through 更换货品: run `20261022-111235-9p2j` passed (hot-loaded source; 重建指挥部 精选荞愈胶囊 16396 × 70 = reserve 1147765 → 45, stock 18037 → 1644; 难民暂居处 skipped at 34 tradable; 四号谷地 allowlist obeyed). Earlier runs before the allowlist also sold 荞愈胶囊 1460, 铁制零件 34360 (→ 100), 紫晶质瓶 1472 in 四号谷地. Failure path seen (`shares_unread`, `unread_after`, `receipt_1_expected_10098`, all fixed). Next: run from the bundled build via the menu |
 | 弹性物资囤货 (`stockpile`) | partial | 四号谷地 run `20261022-121906-ynnh` passed (hot-loaded source): quota 320 → 0, 硬脑壳头盔货组 ×320 at 394 (lowest of 12), owned 640 → 960, balance 11362821 → 11236741 = −126080, 购买成功 receipt 320. 武陵 bought by run `20261022-121606-83ao` (天师龙泡泡货组 ×230 at 1083, 购买成功 shows 230) which then failed on the then-unknown 购买成功 screen before its checks; `quota already used` path seen. Next: bundled build |
+| 会客室 线索赠予/交流 (`clue_exchange`) | partial | one gift by hand 2026-10-22 12:53 (寂语修会的线索 05: stock 2 → 1, 获得奖励 信用 40, 信用 148 → 188); task's `nothing_to_do` live (`20261022-125737-c4ol`: all 7 types read, 3 at 1, 4 greyed at 0; 线索交流 running, 03:53:50 left). 快速赠予重复线索 stayed disabled with a duplicate. Next: gift path through the task when a type reaches 2; start 线索交流 after the current one ends (~16:50) |
 | 模拟空间奖励 | nothing to claim | 行动手册 → 模拟: 四号谷地 26/26, 武陵 23/23 complete (2026-10-22); revisit when a game update adds simulations |
 | 资源回收站 | deferred | low priority (Max) |
 | Other Phase 1–4 tasks | not started | |
