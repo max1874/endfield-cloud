@@ -139,6 +139,8 @@
     const start = performance.now();
     let last = null, streak = 0, escapes = 0;
     while (performance.now() - start < timeout) {
+      // A failed game login shows as a page notice the stream cannot see.
+      if (E.session?.state() === 'login_failed') E.block('session_login_failed');
       const look = await E.look();
       streak = last && last.screen === look.screen ? streak + 1 : 1;
       last = look;

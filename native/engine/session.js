@@ -36,6 +36,12 @@
   const startButtons = () => [...document.querySelectorAll('button')].filter(b => b.innerText.trim() === '开始游戏' && shown(b));
   // Server-side conditions that clear by themselves (AGENTS.md, "Runtime").
   const RETRYABLE = /火速处理中|排队超时/;
+  // Conditions only Max can clear. The game's login can fail mid-start with a page
+  // notice over the still-playing stream ("登录失败，请检查网络连接后再试(-1)"); its
+  // 知道了 ends the session. After that the page showed its phone/验证码 login form
+  // and ignored 开始游戏 (2026-10-22 16:20).
+  const LOGIN_FAILED = /登录失败/;
+  const LOGGED_OUT = /^(注册\/登录|发送验证码)$/;
 
   E.session = {
     streaming,
@@ -43,7 +49,9 @@
     // home page's 开始游戏 stays laid out underneath; pressing it then ends the new
     // session and triggers the server cooldown (observed 2026-10-22 09:08).
     state() {
+      if (shownText(LOGIN_FAILED)) return 'login_failed';
       if (streaming()) return 'streaming';
+      if (shownText(LOGGED_OUT)) return 'logged_out';
       if (shownText(RETRYABLE)) return 'retry_later';
       if (video()) return 'connecting';
       if (startButtons().length) return 'home';
@@ -59,6 +67,7 @@
       while (performance.now() - begin < timeout) {
         const state = this.state();
         if (state === 'streaming') { E.log(`session streaming presses=${presses}`); return true; }
+        if (state === 'login_failed' || state === 'logged_out') E.block(`session_${state}`);
         if (state === 'retry_later') {
           E.log('session server busy; retrying in 20 s');
           button('知道了')?.click();
