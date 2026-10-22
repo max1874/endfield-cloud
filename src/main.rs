@@ -63,6 +63,8 @@ static POPUP_ID: AtomicUsize = AtomicUsize::new(1);
 const ENGINE_MENU_TASKS: &[(&str, &str)] = &[
     ("selftest", "运行：引擎自检（设置往返）"),
     ("dijiang_collect", "运行：基建 · 快速收取"),
+    ("daily_tasks", "运行：日常任务 · 领取"),
+    ("mail_claim", "运行：邮件 · 全部收取"),
 ];
 
 // The automation engine (native/engine/), bundled with its templates by build.rs.

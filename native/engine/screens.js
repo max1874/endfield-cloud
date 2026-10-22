@@ -20,6 +20,33 @@
   const TAP_REGION = [0.15, 0.55, 0.7, 0.4];
   E.screen('tap_notice', look => look.has(TAP_HINT, TAP_REGION), 85);
   E.screen('menu', look => MENU_LABELS.filter(label => look.has(label)).length >= 3, 80);
+
+  // ---- 获得奖励 ------------------------------------------------------------------
+  // The shared reward screen: a row of item tiles (count printed on the tile, name
+  // under it) and a confirm check at the bottom. Seen after 基建 collection and
+  // 行动手册 milestones.
+  const REWARD_NAMES = [0.1, 0.55, 0.8, 0.06];
+  // The mailbox's variant is titled 邮箱奖励 (MaaEnd's strings; not yet seen here).
+  E.screen('reward', look => look.has(/获得奖励|邮箱奖励/, [0.3, 0.09, 0.4, 0.07]), 76);
+  E.reward = {
+    async read(look) {
+      const items = [];
+      for (const name of E.findAll(look.texts, /\S/, REWARD_NAMES)) {
+        const [cx] = E.center(name);
+        items.push({ name: name.text, count: await E.readNumber(look.frame, [cx - 0.02, name.y - 0.046, 0.04, 0.035]) });
+      }
+      return items;
+    },
+    // Confirm and wait until the reward screen is gone.
+    async confirm() {
+      await E.click(0.5, 0.874);
+      for (let i = 0; i < 20; i++) {
+        await E.sleep(300);
+        if ((await E.look()).screen !== 'reward') return;
+      }
+      E.fail('reward_not_closed');
+    }
+  };
   E.screen('settings', look => look.has('设置', [0, 0, 0.12, 0.07]), 70);
   // In the world the top-right key hints are drawn on dark label boxes, so the ESC
   // label matches whatever the scene behind it. Full-screen panels hide it.
