@@ -28,10 +28,10 @@
   // under it) and a confirm check at the bottom. Seen after 基建 collection and
   // 行动手册 milestones.
   const REWARD_NAMES = [0.1, 0.55, 0.8, 0.06];
-  // Same layout under other titles: 据点交易 (trade result, counts like "110万"); the
-  // mailbox's 邮箱奖励 comes from MaaEnd's strings and is not yet seen here. Esc does
-  // not close these.
-  E.screen('reward', look => look.has(/获得奖励|邮箱奖励|据点交易/, [0.3, 0.09, 0.4, 0.07]), 76);
+  // Same layout under other titles: 据点交易 (trade result, counts like "110万"),
+  // 购买成功 (物资调度 purchase); the mailbox's 邮箱奖励 comes from MaaEnd's strings
+  // and is not yet seen here. Esc does not close these.
+  E.screen('reward', look => look.has(/获得奖励|邮箱奖励|据点交易|购买成功/, [0.3, 0.09, 0.4, 0.07]), 76);
   E.reward = {
     async read(look) {
       const items = [];
@@ -66,6 +66,59 @@
   // In the world the top-right key hints are drawn on dark label boxes, so the ESC
   // label matches whatever the scene behind it. Full-screen panels hide it.
   E.screen('world', async look => (await E.match(look.frame, 'hud_esc', [0.945, 0, 0.055, 0.045])).score >= 0.8, 0);
+
+  // ---- 地区建设 -------------------------------------------------------------------
+  // Menu → 地区建设 opens the last viewed region; the switch icon left of the region
+  // name opens a picker with one card per region and 确认.
+  E.screen('region', look => look.has('地区建设管理') && look.has('据点管理'), 74);
+  const REGIONS = ['武陵', '四号谷地'];
+  const REGION_NAME = [0.07, 0.23, 0.15, 0.08];
+  const REGION_SWITCH = [92 / 1920, 318 / 1080];
+  E.regions = {
+    name: look => REGIONS.find(r => look.has(r, REGION_NAME)) || null,
+    // On the 地区建设 screen: open the picker, choose `target`, confirm.
+    async switchTo(target) {
+      await E.click(...REGION_SWITCH);
+      await E.sleep(1200);
+      let look = await E.look();
+      const card = E.find(look.texts, new RegExp(`${target}$`), [0.3, 0.28, 0.4, 0.06]);
+      if (!card) E.fail(`region_picker_without_${target}`);
+      await E.click(...E.center(card));
+      await E.sleep(800);
+      look = await E.look();
+      const confirm = E.find(look.texts, /^确认$/, [0.45, 0.55, 0.25, 0.1]);
+      if (!confirm) E.fail('region_picker_without_确认');
+      await E.click(...E.center(confirm));
+      for (let i = 0; i < 20; i++) {
+        await E.sleep(500);
+        look = await E.look();
+        if (look.screen === 'region' && E.regions.name(look) === target) return look;
+      }
+      E.fail(`region_not_switched_to_${target}`);
+    },
+    // From the menu: for every region (the one shown first), open the management
+    // entry `label` (据点管理, 物资调度, ...), run `fn(region)`, and Escape back.
+    async visit(t, label, fn) {
+      await E.park();
+      const menu = await E.look();
+      const entry = E.find(menu.texts, '地区建设');
+      if (!entry) E.fail('menu_without_地区建设');
+      await E.click(...E.center(entry));
+      let region = await E.waitFor('region', { timeout: 10000 });
+      const first = E.regions.name(region);
+      if (!first) E.fail('region_name_unread');
+      for (const name of [first, ...REGIONS.filter(r => r !== first)]) {
+        if (E.regions.name(region) !== name) region = await E.regions.switchTo(name);
+        await t.save(region.frame, `region-${name === '武陵' ? 'wuling' : 'valley'}`);
+        const button = E.find(region.texts, label);
+        if (!button) E.fail(`region_without_${label}`);
+        await E.click(...E.center(button));
+        await fn(name);
+        await E.key('Escape');
+        region = await E.waitFor('region', { timeout: 10000 });
+      }
+    }
+  };
 
   // ---- navigation ----------------------------------------------------------------
   E.nav = {

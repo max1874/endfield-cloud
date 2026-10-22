@@ -67,6 +67,7 @@ const ENGINE_MENU_TASKS: &[(&str, &str)] = &[
     ("mail_claim", "运行：邮件 · 全部收取"),
     ("prod_manual", "运行：简制手册 · 领取"),
     ("outpost_trading", "运行：据点交易"),
+    ("stockpile", "运行：弹性物资囤货"),
 ];
 
 // The automation engine (native/engine/), bundled with its templates by build.rs.

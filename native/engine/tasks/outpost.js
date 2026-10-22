@@ -27,7 +27,6 @@
   const THUMB_TRACK = [px(1538, 862), px(1745, 862)];
 
   E.screen('outposts', look => look.has(/据点$/, [0.05, 0, 0.15, 0.07]) && look.has('本次交易份数'), 74);
-  E.screen('region', look => look.has('地区建设管理') && look.has('据点管理'), 74);
 
   // Every number here sits alone in its region (labels carry no digits).
   const number = (frame, roi) => E.readNumber(frame, roi);
@@ -201,54 +200,15 @@
     }
   }
 
-  const REGIONS = ['武陵', '四号谷地'];
-  const REGION_NAME = [0.07, 0.23, 0.15, 0.08];
-  const REGION_SWITCH = px(92, 318);
-  const regionName = look => REGIONS.find(r => look.has(r, REGION_NAME)) || null;
-
-  // On the 地区建设 screen: open the picker, choose `target`, confirm.
-  async function switchRegion(target) {
-    await E.click(...REGION_SWITCH);
-    await E.sleep(1200);
-    let look = await E.look();
-    const card = E.find(look.texts, new RegExp(`${target}$`), [0.3, 0.28, 0.4, 0.06]);
-    if (!card) E.fail(`region_picker_without_${target}`);
-    await E.click(...E.center(card));
-    await E.sleep(800);
-    look = await E.look();
-    const confirm = E.find(look.texts, /^确认$/, [0.45, 0.55, 0.25, 0.1]);
-    if (!confirm) E.fail('region_picker_without_确认');
-    await E.click(...E.center(confirm));
-    for (let i = 0; i < 20; i++) {
-      await E.sleep(500);
-      look = await E.look();
-      if (look.screen === 'region' && regionName(look) === target) return look;
-    }
-    E.fail(`region_not_switched_to_${target}`);
-  }
-
   E.task('outpost_trading', {
     title: '据点交易',
     start: 'menu',
     async run(t) {
-      await E.park();
-      const menu = await E.look();
-      const entry = E.find(menu.texts, '地区建设');
-      if (!entry) E.fail('menu_without_地区建设');
-      await E.click(...E.center(entry));
-      let region = await E.waitFor('region', { timeout: 10000 });
-      const first = regionName(region);
-      if (!first) E.fail('region_name_unread');
-      for (const name of [first, ...REGIONS.filter(r => r !== first)]) {
-        if (regionName(region) !== name) region = await switchRegion(name);
-        await t.save(region.frame, `region-${name === '武陵' ? 'wuling' : 'valley'}`);
-        await E.click(...E.center(E.find(region.texts, '据点管理')));
+      await E.regions.visit(t, '据点管理', async name => {
         const outposts = await E.waitFor('outposts', { timeout: 10000 });
         const tabs = TABS.filter(([x, y]) => E.find(outposts.texts, /\S{3,}/, [x - 0.05, y - 0.04, 0.2, 0.06]));
         for (let i = 0; i < tabs.length; i++) await tradeOutpost(t, name, i);
-        await E.key('Escape');
-        region = await E.waitFor('region', { timeout: 10000 });
-      }
+      });
       if (!t.changes.length) return t.skip('no outpost had goods above 100');
       return t.pass(`traded at ${t.changes.length} outpost(s)`);
     }
