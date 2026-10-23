@@ -136,7 +136,21 @@
       if (target === 'world') return look;
       if (target === 'menu') {
         await E.key('Escape');
-        return E.waitFor('menu', { timeout: 8000 });
+        let look = await E.waitFor('menu', { timeout: 8000 });
+        // The menu counts as shown while its entries still slide in. Right after a
+        // login a click meant for 地区建设 opened 行动手册 (2026-10-23), so wait until
+        // the entries hold still between two looks with the cursor parked.
+        for (let i = 0; i < 10; i++) {
+          await E.park({ settle: 500 });
+          const next = await E.look();
+          const moved = MENU_LABELS.some(label => {
+            const a = E.find(look.texts, label), b = E.find(next.texts, label);
+            return !a || !b || Math.hypot(a.x - b.x, a.y - b.y) > 0.004;
+          });
+          look = next;
+          if (!moved && next.screen === 'menu') return next;
+        }
+        return look;
       }
       E.fail(`unknown_start_${target}`);
     }

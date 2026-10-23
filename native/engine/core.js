@@ -21,17 +21,27 @@
   E.fail = (message, detail) => { throw new EngineError('failed', message, detail); };
   E.block = (message, detail) => { throw new EngineError('blocked', message, detail); };
 
-  let abort = null;
+  // A run can be stopped (结束, menu 结束运行) or paused (接管 only, Max 2026-10-23: real
+  // input in the game, such as a trackpad scroll over the inactive window, paused runs
+  // nobody meant to pause, so input no longer stops or pauses anything). A pause aborts
+  // the current step like a stop; the runner then holds until 继续 (the interrupted
+  // task starts over) or 结束.
+  let abort = null, waiting = null;
   E.begin = () => { abort = new AbortController(); return abort.signal; };
-  E.end = () => { abort = null; };
-  E.stop = reason => abort?.abort(reason || 'stopped_by_menu');
+  E.end = () => { abort = null; waiting?.('end'); };
+  E.stop = reason => { if (waiting) waiting('end'); else abort?.abort(reason || 'stopped_by_menu'); };
+  E.pause = reason => { if (abort && !waiting && !abort.signal.aborted) abort.abort(`pause:${reason}`); };
+  E.isPause = error => error instanceof EngineError && error.kind === 'stopped' && error.message.startsWith('pause:');
+  // Resolves true on 继续 (with a fresh abort signal), false on 结束.
+  E.hold = () => new Promise(resolve => {
+    waiting = choice => { waiting = null; if (choice === 'continue') E.begin(); resolve(choice === 'continue'); };
+  });
+  E.resume = () => waiting?.('continue');
+  E.paused = () => !!waiting;
   E.running = () => !!abort;
   E.check = () => {
     if (abort?.signal.aborted) throw new EngineError('stopped', String(abort.signal.reason));
   };
-  // Real input in the game means the user has taken over.
-  for (const type of ['keydown', 'mousedown', 'wheel'])
-    document.addEventListener(type, event => { if (event.isTrusted) E.stop('user_input'); }, true);
 
   E.sleep = ms => new Promise((resolve, reject) => {
     E.check();

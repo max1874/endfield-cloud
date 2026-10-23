@@ -105,13 +105,28 @@
       const cards = await readMarket(look);
       if (!cards) continue;
       const fresh = cards.filter(c => !market.has(c.name));
-      for (const c of cards) market.set(c.name, c);
+      // A frame taken mid-scroll can miss a price; never let it replace one read
+      // (冬虫夏笋货组 619 ended up unread, 2026-10-23).
+      for (const c of cards) if (market.get(c.name)?.price == null) market.set(c.name, c);
       shown = look;
       if (i > 0 && !fresh.length) break;
     }
     if (!shown) E.fail(`${region}_market_not_reached`);
     look = shown;
     await t.save(look.frame, `${tag}-market`);
+    // The currency icon sits closer to a 3-digit price and can read as a leading 1
+    // (619 vs 1619 tied, 2026-10-23). A price the list leaves unread is read from the
+    // card's 购买物资 dialog, which the purchase checks against anyway.
+    for (const c of await readMarket(look) || []) {
+      if (market.get(c.name)?.price != null) continue;
+      const { dialog } = await openCard(t, `${tag}-price`, c);
+      await E.key('Escape');
+      await E.waitFor('stock_market', { timeout: 8000 });
+      await E.park({ at: [0.5, 0.03], settle: 800 });
+      market.set(c.name, { ...c, price: dialog.price });
+      t.note(`${c.name}: price ${dialog.price} read from its dialog`);
+    }
+    look = await E.look();
     const cards = [...market.values()];
     t.note(`${region} market: ${cards.map(c => `${c.name}=${c.price}`).join(' ')}`);
     if (!cards.length) E.fail(`${region}_market_unread`);

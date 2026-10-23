@@ -206,7 +206,12 @@ fn main() {
             for (task, title) in ENGINE_MENU_TASKS {
                 automation.append(&MenuItem::with_id(app, format!("engine-run:{task}"), *title, true, None::<&str>)?)?;
             }
-            automation.append(&MenuItem::with_id(app, "engine-stop", "停止", true, Some("CmdOrCtrl+Shift+."))?)?;
+            automation.append(&PredefinedMenuItem::separator(app)?)?;
+            // The same actions as the run's on-screen bar, for when the game holds the
+            // pointer and the bar cannot be clicked.
+            automation.append(&MenuItem::with_id(app, "engine-pause", "接管（暂停运行）", true, None::<&str>)?)?;
+            automation.append(&MenuItem::with_id(app, "engine-resume", "继续运行", true, None::<&str>)?)?;
+            automation.append(&MenuItem::with_id(app, "engine-stop", "结束运行", true, Some("CmdOrCtrl+Shift+."))?)?;
             menu.append(&automation)?;
             app.set_menu(menu)?;
             create_window(app.handle(), "game", CLOUD_URL.parse()?, None)?;
@@ -231,11 +236,15 @@ fn main() {
                     }
                 }
                 #[cfg(target_os = "macos")]
-                id if id == "engine-stop" || id == "engine-run-daily" || id.starts_with("engine-run:") => {
+                id if matches!(id, "engine-stop" | "engine-pause" | "engine-resume" | "engine-run-daily") || id.starts_with("engine-run:") => {
                     // Task ids come from DAILY_TASKS and ENGINE_MENU_TASKS, never from the page.
                     let command = if id == "engine-run-daily" {
                         // Starts the cloud session when none is playing, and exits only that one.
                         format!("window.__engine.run({DAILY_TASKS:?}, {{ session: 'auto' }})")
+                    } else if id == "engine-pause" {
+                        "window.__engine.pause('take_over')".to_string()
+                    } else if id == "engine-resume" {
+                        "window.__engine.resume()".to_string()
                     } else {
                         match id.strip_prefix("engine-run:") {
                             Some(task) => format!("window.__engine.run([{task:?}])"),

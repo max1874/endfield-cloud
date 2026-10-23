@@ -13,9 +13,13 @@
   const KEEP = 100;
   // Outposts sitting near 100 would otherwise trade a few units on every run.
   const MIN_SHARES = 50;
-  // Goods each region may sell (Max, 2026-10-22); a region not listed sells any goods.
-  // Names must match exactly: 荞愈胶囊 and 优质荞愈胶囊 are different goods.
-  const ALLOWED = { 四号谷地: ['精选荞愈胶囊', '高容谷地电池'] };
+  // Goods each region may sell (Max: 四号谷地 2026-10-22, 武陵 2026-10-23, after a run
+  // sold 61555 息壤); a region not listed sells any goods. Names must match exactly:
+  // 荞愈胶囊 and 优质荞愈胶囊 are different goods, as are 息壤 and 重息壤.
+  const ALLOWED = {
+    四号谷地: ['精选荞愈胶囊', '高容谷地电池'],
+    武陵: ['中容武陵电池', '重息壤', '优质芽针针剂', '灼铜零件'],
+  };
   const px = (x, y) => [x / 1920, y / 1080];
   const TABS = [px(290, 118), px(735, 118), px(1205, 118)];
   const SHARES = [0.8, 0.745, 0.12, 0.04];

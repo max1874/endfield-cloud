@@ -34,8 +34,12 @@ unchanged into `maps/`, each listed with its source in `maps/README.md`.
 - Build and run: `scripts/build-app.sh`, then `scripts/run-app.sh` (the runtime
   log goes to `artifacts/runtime-*.log`; page errors and WebRTC state appear there
   prefixed with `page`).
-- Automation runs while the window is covered or inactive. Real user input inside
-  the game stops it; never reintroduce a focus requirement.
+- Automation runs while the window is covered or inactive; never reintroduce a focus
+  requirement. Only 接管 pauses a run (Max 2026-10-23); real input in the game is
+  ignored, since a trackpad scroll over the inactive window already reaches the page.
+  A bar at the top of the page offers 接管 while running and 继续 / 结束 while paused,
+  and the 自动化 menu has the same actions. 继续 starts the interrupted task over;
+  结束 leaves the session to the user.
 - The game window loads only `https://endfield.hypergryph.com/cloud`. Native
   bridges check that origin before acting.
 - Server-side conditions that are not our bugs: "上一局数据正在火速处理中" for about
@@ -73,7 +77,7 @@ unchanged into `maps/`, each listed with its source in `maps/README.md`.
   shares the DOM with the cloud page, so its events reach the SDK, while page
   scripts cannot reach it. Native code only provides OCR (Vision), evidence
   storage under `automation/<run>/<task>/` and logging (`engine …` in the runtime log).
-- Menu 自动化 runs a task; Cmd+Shift+. stops it. In debug builds a dev-inbox script
+- Menu 自动化 runs a task or 每日全部; Cmd+Shift+. (结束运行) ends a run. In debug builds a dev-inbox script
   that starts with `//world:engine` runs in the engine world, which allows
   hot-loading a changed engine file before rebuilding.
 - Templates are cropped from our own 1920×1080 frames, never from MaaEnd.
