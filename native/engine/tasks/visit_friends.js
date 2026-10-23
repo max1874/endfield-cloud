@@ -88,9 +88,11 @@
         continue;
       }
       const after = balance(look);
-      const done = E.find(look.texts, kind === 'clue' ? '已交流' : '已助力', [button.x - 0.05, 0.79, button.w + 0.1, 0.06]);
-      if (!done) E.fail(`${room}_${kind}_button_not_marked`);
       const frame = await t.save(look.frame, `f${index}-${kind}-after`);
+      // The pressed button can turn into a wider bar (总控中枢: "心情恢复 … 已助力",
+      // the mark at the card's right end, 2026-10-23), so look across the card.
+      const done = E.find(look.texts, kind === 'clue' ? '已交流' : '已助力', [button.x - 0.08, 0.79, 0.24, 0.06]);
+      if (!done) E.fail(`${room}_${kind}_button_not_marked`);
       t.change({ what: `${name} ${room} ${button.text}`, left: { before: left[kind], after: now[kind] },
         credits: { before, after }, frames: [shown, frame] });
       if (before !== null && after !== null && after <= before) t.note(`${name} ${room}: 信用 ${before} → ${after}`);

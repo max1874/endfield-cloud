@@ -40,9 +40,10 @@
         const buttons = E.findAll(look.texts, '领取', LIST);
         if (!buttons.length) break;
         for (const b of buttons) {
-          const gain = E.find(look.texts, /^[×xX]\s*\d+$/, [0.66, b.y - 0.03, 0.08, 0.07]);
-          if (!gain) E.fail('claimable_row_without_activity');
-          expected += Number(gain.text.replace(/\D/g, ''));
+          // Dots flank the gain ("· ×20 ·") and may read as part of it.
+          const gain = E.find(look.texts, /[×xX]\s*\d+/, [0.66, b.y - 0.03, 0.08, 0.07]);
+          if (!gain) { await t.save(look.frame, 'row-without-activity'); E.fail('claimable_row_without_activity'); }
+          expected += Number(gain.text.match(/[×xX]\s*(\d+)/)[1]);
           rows++;
         }
         await E.click(...E.center(buttons[0]));

@@ -49,7 +49,9 @@
   let current = null;
   // Run tasks in order. Each task starts from its start screen and the game is
   // returned to the world afterwards, whatever the outcome. With `session`, the run
-  // also starts the cloud session first and exits it at the end (unattended runs).
+  // also starts the cloud session first and exits it at the end (unattended runs);
+  // with 'auto', it starts one only when none is playing and exits only the one it
+  // started.
   E.run = async (ids, { options = {}, session = false } = {}) => {
     if (current) { E.log('run rejected: already running'); return null; }
     const runId = `${stamp()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -57,8 +59,9 @@
     current = runId;
     E.begin();
     E.log(`run start id=${runId} tasks=${ids.join(',')} session=${session}`);
+    const own = session === true || (session === 'auto' && !E.session.streaming());
     try {
-      if (session) {
+      if (own) {
         E.status('正在启动云游戏');
         await E.session.start();
       }
@@ -90,7 +93,7 @@
           break;
         }
       }
-      if (session) await E.session.exit();
+      if (own) await E.session.exit();
     } catch (error) {
       E.log(`run aborted ${error.message || error}`);
     } finally {

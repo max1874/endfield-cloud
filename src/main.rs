@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tauri::{
-    menu::{Menu, MenuItem, Submenu},
+    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     webview::{NewWindowFeatures, NewWindowResponse, PageLoadEvent},
     AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
@@ -59,10 +59,27 @@ fn spawn_dev_inbox(app: AppHandle) -> tauri::Result<()> {
 const CLOUD_URL: &str = "https://endfield.hypergryph.com/cloud";
 static POPUP_ID: AtomicUsize = AtomicUsize::new(1);
 
+// 每日全部, in Max's order (GOAL.md): 总控事项 brings in the day's clues before they
+// are exchanged, the 信用 earners and gifts run before 信用点购物 spends it, 据点交易
+// earns the 调度券 that 弹性物资囤货 spends, and 日常任务 comes last to claim the
+// activity the others earned.
+const DAILY_TASKS: &[&str] = &[
+    "dijiang_collect",
+    "clue_exchange",
+    "visit_friends",
+    "operator_gifts",
+    "credit_shop",
+    "outpost_trading",
+    "stockpile",
+    "prod_manual",
+    "mail_claim",
+    "daily_tasks",
+];
+
 // Tasks offered in the 自动化 menu: (engine task id, menu title).
 const ENGINE_MENU_TASKS: &[(&str, &str)] = &[
     ("selftest", "运行：引擎自检（设置往返）"),
-    ("dijiang_collect", "运行：基建 · 快速收取"),
+    ("dijiang_collect", "运行：基建 · 总控事项（产物、线索）"),
     ("clue_exchange", "运行：会客室 · 线索赠予与交流"),
     ("visit_friends", "运行：拜访好友 · 生产助力与情报交流"),
     ("operator_gifts", "运行：赠送干员礼物"),
@@ -184,6 +201,8 @@ fn main() {
                 &[&reload, &home, &fullscreen, &sensitivity_1, &sensitivity_2, &sensitivity_4, &sensitivity_8, &sensitivity_16],
             )?)?;
             let automation = Submenu::new(app, "自动化", true)?;
+            automation.append(&MenuItem::with_id(app, "engine-run-daily", "运行：每日全部", true, None::<&str>)?)?;
+            automation.append(&PredefinedMenuItem::separator(app)?)?;
             for (task, title) in ENGINE_MENU_TASKS {
                 automation.append(&MenuItem::with_id(app, format!("engine-run:{task}"), *title, true, None::<&str>)?)?;
             }
@@ -212,11 +231,16 @@ fn main() {
                     }
                 }
                 #[cfg(target_os = "macos")]
-                id if id == "engine-stop" || id.starts_with("engine-run:") => {
-                    let command = match id.strip_prefix("engine-run:") {
-                        // Task ids come from ENGINE_MENU_TASKS, never from the page.
-                        Some(task) => format!("window.__engine.run([{task:?}])"),
-                        None => "window.__engine.stop('stopped_by_menu')".to_string(),
+                id if id == "engine-stop" || id == "engine-run-daily" || id.starts_with("engine-run:") => {
+                    // Task ids come from DAILY_TASKS and ENGINE_MENU_TASKS, never from the page.
+                    let command = if id == "engine-run-daily" {
+                        // Starts the cloud session when none is playing, and exits only that one.
+                        format!("window.__engine.run({DAILY_TASKS:?}, {{ session: 'auto' }})")
+                    } else {
+                        match id.strip_prefix("engine-run:") {
+                            Some(task) => format!("window.__engine.run([{task:?}])"),
+                            None => "window.__engine.stop('stopped_by_menu')".to_string(),
+                        }
                     };
                     match windows.get("game") {
                         Some(game) => engine_command(game, &command),

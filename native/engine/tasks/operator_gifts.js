@@ -9,7 +9,8 @@
 // are skipped); give the 3 lowest-信赖度 operators below 200% one batch each in a
 // single confirm: 3 of the best-liked gift, or 30 of the most-stocked one when no
 // liked gift is in stock. Clicking a gift tile n times selects n of it. Gifts are
-// in-game items.
+// in-game items. The 3 are per game day: operators done today are kept in the engine's
+// store, so a second run that day only makes up the rest.
 (() => {
   const E = window.__engine;
   if (!E) return;
@@ -495,11 +496,11 @@
       await E.click(...GIFT_CLOSE);
       for (let i = 0; i < 5; i++) {
         const back = await E.waitFor(['operator_talk', 'talk_line', 'world'], { timeout: 8000 });
-        if (back.screen === 'world') return false;
-        if (back.screen === 'operator_talk') { await leaveTalk(back); return false; }
+        if (back.screen === 'world') break;
+        if (back.screen === 'operator_talk') { await leaveTalk(back); break; }
         await E.click(0.5, 0.6);
       }
-      return false;
+      return level !== '高' ? 'gifted_today' : 'skipped';
     }
     const shown = await t.save(batch.look.frame, `op${index}-batch`);
     const confirm = E.find(batch.look.texts, '确认赠送', [0.8, 0.87, 0.15, 0.07]);
@@ -515,16 +516,24 @@
       gift: { before: batch.count, after: batch.count - batch.n }, trust: { before, after }, frames: [shown, frame] });
     if (after === null || before === null || after <= before) t.note(`${name}: 信赖度 ${before} → ${after}`);
     await leaveTalk(talkLook);
-    return true;
+    return 'given';
   }
 
   E.task('operator_gifts', {
     title: '赠送干员礼物',
     start: 'world',
     async run(t) {
+      // Operators gifted today, by an earlier run or by hand (their gift screen no
+      // longer shows 高), count toward the day's 3.
+      const day = E.gameDay();
+      const record = await E.store.get('operator_gifts');
+      const done = new Set(record?.day === day ? record.names : []);
+      if (done.size >= OPERATORS) return t.skip(`already ${done.size} today: ${[...done].join('、')}`);
+      if (done.size) t.note(`gifted earlier today: ${[...done].join('、')}`);
       // Summoned operators leave after a short stay; whoever was not reached by then is
-      // summoned again in the next round.
-      const done = new Set();
+      // summoned again in the next round. Those with nothing to give stay passed over.
+      const passed = new Set();
+      let talks = 0;
       for (let round = 0; round < 3 && done.size < OPERATORS; round++) {
         if (!kioskPrompt(await E.look())) {
           // Next to the kiosk already (its prompt needs a move to show), no teleport:
@@ -540,7 +549,7 @@
         for (const card of candidates(contact)) {
           if (cards.length >= OPERATORS - done.size) break;
           card.name = await cardName(card);
-          if (!done.has(card.name)) cards.push(card);
+          if (!done.has(card.name) && !passed.has(card.name)) cards.push(card);
         }
         if (!cards.length) {
           await E.key('Escape');
@@ -566,7 +575,7 @@
         for (const card of cards) {
           const entry = await reachOperator(t, card.name);
           if (!entry) { t.note(`round ${round}: ${card.name} not reached`); continue; }
-          const index = done.size;
+          const index = talks++;
           const talkLook = await talk(card.name, entry);
           // The talk shows the 信赖度; it must be the summoned card's.
           const shown = trustOf(talkLook);
@@ -576,11 +585,12 @@
             await leaveTalk(talkLook);
             continue;
           }
-          await giftOperator(t, card.name, index, talkLook);
+          if (await giftOperator(t, card.name, index, talkLook) === 'skipped') { passed.add(card.name); continue; }
           done.add(card.name);
+          await E.store.set('operator_gifts', { day, names: [...done] });
         }
       }
-      if (!t.changes.length) return t.skip('no gift given');
+      if (!t.changes.length) return t.skip(done.size ? `no gift given; done today: ${[...done].join('、')}` : 'no gift given');
       return t.pass(`${t.changes.length} gift(s)`);
     }
   });

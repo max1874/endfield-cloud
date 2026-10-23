@@ -42,6 +42,13 @@
 
   E.log = (...parts) => bridge({ op: 'log', text: parts.map(p => typeof p === 'string' ? p : JSON.stringify(p)).join(' ') }).catch(() => {});
   E.status = text => bridge({ op: 'status', text }).catch(() => {});
+  // Small JSON state kept across runs, next to the run directories.
+  E.store = {
+    async get(name) { const text = await bridge({ op: 'load', path: `state/${name}.json` }); return text ? JSON.parse(text) : null; },
+    set: (name, value) => bridge({ op: 'save', path: `state/${name}.json`, text: JSON.stringify(value, null, 2) }),
+  };
+  // The game day: daily resets come at 04:00 server time (UTC+8).
+  E.gameDay = () => new Date(Date.now() + 4 * 3600000).toISOString().slice(0, 10);
 
   // ---- stream and frames ---------------------------------------------------------
   E.video = () => {

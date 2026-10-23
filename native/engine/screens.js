@@ -84,9 +84,13 @@
       const card = E.find(look.texts, new RegExp(`${target}$`), [0.3, 0.28, 0.4, 0.06]);
       if (!card) E.fail(`region_picker_without_${target}`);
       await E.click(...E.center(card));
-      await E.sleep(800);
-      look = await E.look();
-      const confirm = E.find(look.texts, /^确认$/, [0.45, 0.55, 0.25, 0.1]);
+      // The confirm dialog showed after more than 800 ms once (2026-10-23).
+      let confirm = null;
+      for (let i = 0; i < 10 && !confirm; i++) {
+        await E.sleep(500);
+        look = await E.look();
+        confirm = E.find(look.texts, /^确认/, [0.45, 0.55, 0.25, 0.1]);
+      }
       if (!confirm) E.fail('region_picker_without_确认');
       await E.click(...E.center(confirm));
       for (let i = 0; i < 20; i++) {

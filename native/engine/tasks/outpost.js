@@ -117,7 +117,10 @@
       }
       look = await E.look();
       await t.save(look.frame, `${label}-goods-${ranked.indexOf(pick) + 1}${attempt ? `-${attempt}` : ''}`);
-      if (!look.has(pick.name, [0.62, 0.38, 0.25, 0.07]) && !look.has('获取方式')) confirm = E.find(look.texts, /^确认$/, [0.7, 0.75, 0.3, 0.12]);
+      // A tooltip repeats the goods name; a card in the third column, second row has
+      // its own name where the tooltip's would be (2026-10-23), so count the names.
+      const named = E.findAll(look.texts, new RegExp(`^[^\u4e00-\u9fa5]*${pick.name}$`)).length;
+      if (named < 2 && !look.has('获取方式')) confirm = E.find(look.texts, /^确认$/, [0.7, 0.75, 0.3, 0.12]);
     }
     if (!confirm) E.fail('goods_list_without_确认');
     await E.click(...E.center(confirm));

@@ -54,11 +54,26 @@
     return r > 200 && g > 200 && b > 200;
   };
 
+  // The selected clue card has a yellow frame; its left edge below the type number
+  // reads (253, 237, 0), unselected ones are near black (2026-10-23).
+  const selected = (frame, card) => {
+    const [r, g, b] = E.color(frame, [68 / 1920, card.at[1] + 66 / 1080, 8 / 1920, 8 / 1080]);
+    return r > 200 && g > 190 && b < 80;
+  };
+
   // Give one clue of `card` to the first friend who can take it; returns 信用 paid.
+  // A click on a card right after a gift was once lost and 赠予 sent the previously
+  // selected clue, its last one (2026-10-23), so 赠予 waits until the card shows selected.
   async function giveOne(t, card, index) {
-    await E.click(...card.at);
-    await E.park({ at: [0.5, 0.03], settle: 1200 });
-    const look = await E.look();
+    let look = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await E.click(...card.at);
+      await E.park({ at: [0.5, 0.03], settle: 1200 });
+      look = await E.look();
+      if (selected(look.frame, card)) break;
+      look = null;
+    }
+    if (!look) { await t.save(await E.grab(), `give${index}-not-selected`); E.fail(`${card.name}_not_selected`); }
     const row = [...Array(FRIEND_ROWS).keys()].find(i => enabled(look.frame, i));
     if (row === undefined) return null;
     const before = credits(look);
