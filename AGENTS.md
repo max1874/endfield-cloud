@@ -6,6 +6,8 @@ stream and drives the game through in-page input.
 
 The current goal, its scope and its ledger are in `GOAL.md`; read it before working
 and update its ledger when a status changes.
+Follow-ups that wait for a reset or another event, and the backlog of ideas, are in
+`TODO.md`.
 
 ## Essential variable
 
