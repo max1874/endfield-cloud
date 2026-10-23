@@ -14,6 +14,7 @@ cargo build --jobs 4
 app_dir="$project_dir/dist/Endfield Cloud Prototype.app"
 mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources"
 cp target/debug/endfield-cloud-prototype "$app_dir/Contents/MacOS/endfield-cloud-prototype"
+cp icons/icon.icns "$app_dir/Contents/Resources/icon.icns"
 cat > "$app_dir/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -23,6 +24,7 @@ cat > "$app_dir/Contents/Info.plist" <<'PLIST'
   <key>CFBundleName</key><string>Endfield Cloud Prototype</string>
   <key>CFBundleDisplayName</key><string>云终末地原型</string>
   <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleIconFile</key><string>icon.icns</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>11.0</string>

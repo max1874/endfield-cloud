@@ -49,16 +49,6 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 - **Done when:** the cause is known and either handled by `dijiang_collect` or
   recorded in GOAL.md as out of scope.
 
-### App icon — added 2026-10-23
-
-- **Trigger:** Max picks a direction from
-  `artifacts/icon-options-20261023-r2/00-sheet.png` (round 1 in
-  `artifacts/icon-options-20261023/` was rejected as cluttered).
-- **Check:** generate with the local Codex CLI (`codex exec --enable
-  image_generation`, no metered image API), mask to the macOS grid (824 px tile in
-  1024, `icons/`), build, and look at the Dock and Finder icon.
-- **Done when:** the bundled app shows the chosen icon instead of the yellow "E".
-
 ## Backlog (ideas, 2026-10-23, waiting for Max to pick)
 
 Suggested order: 1 → 3 → 2.
