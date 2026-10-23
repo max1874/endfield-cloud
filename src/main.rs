@@ -65,6 +65,7 @@ const ENGINE_MENU_TASKS: &[(&str, &str)] = &[
     ("dijiang_collect", "运行：基建 · 快速收取"),
     ("clue_exchange", "运行：会客室 · 线索赠予与交流"),
     ("visit_friends", "运行：拜访好友 · 生产助力与情报交流"),
+    ("operator_gifts", "运行：赠送干员礼物"),
     ("credit_shop", "运行：信用点购物"),
     ("daily_tasks", "运行：日常任务 · 领取"),
     ("mail_claim", "运行：邮件 · 全部收取"),

@@ -1,29 +1,26 @@
 // 赠送干员礼物: gifts go through the 干员联络台 kiosk in the 帝江号's 中央环厅. The map
-// teleports next to it; from there we walk by the minimap, open 干员联络 (F), summon one
-// operator, walk to their name tag and talk (F): 赠送礼物 opens the gift screen with
-// 今日赠礼可提升的信赖. Summoned operators walk off within about a minute unless
-// engaged, so each one is summoned right before the walk.
-// Max's rule (GOAL.md): never take an operator's gift (cards with a gift icon are
-// skipped); gift the 3 lowest-信赖度 operators below 200%, each with the gifts they like
-// best until 今日赠礼可提升的信赖 is no longer 高. Gifts are in-game items.
+// teleports to the nearest 协议传送点; from there we walk by the minimap, located on
+// MaaEnd's floor plan of the ship, open 干员联络 (F) and summon up to 3 operators at
+// once. They walk up and stop a few steps away; each one's talk entry shows once the
+// character is close and faces them, so we step toward their name tag, then
+// Alt+click the entry: 赠送礼物 opens the gift screen with 今日赠礼可提升的信赖.
+// Summoned operators leave after a short stay; whoever was not reached is summoned
+// again. Max's rule (GOAL.md): never take an operator's gift (cards with a gift icon
+// are skipped); give the 3 lowest-信赖度 operators below 200% one batch each in a
+// single confirm: 3 of the best-liked gift, or 30 of the most-stocked one when no
+// liked gift is in stock. Clicking a gift tile n times selects n of it. Gifts are
+// in-game items.
 (() => {
   const E = window.__engine;
   if (!E) return;
 
   const px = (x, y) => [x / 1920, y / 1080];
   const OPERATORS = 3;
-  const MAX_GIFTS = 10;
+  const LIKED_BATCH = 3;
+  const OTHER_BATCH = 30;
   const PROMPTS = [0.6, 0.57, 0.3, 0.2];
   const KIOSK = /联络台/;
-  // The minimap (top left) is north up and centered on the player's arrow, which
-  // points where the character faces; from the teleport anchor it already shows the
-  // kiosk. The camera keeps its yaw and pitch through a teleport, so headings are
-  // read from the arrow, never assumed. A full camera turn is about 4.7 screen widths
-  // at sensitivity 8 (measured 2026-10-22); the arrow corrects what that misses.
   const WHOLE_MAP = [0.1, 0.08, 0.8, 0.84];
-  const MINIMAP = [0.035, 0.07, 0.1, 0.17];
-  const MINIMAP_CENTER = [161, 166.5];
-  const FULL_TURN = 4.7;
   // 干员联络: a 6-column card grid; each card has its 信赖度 under the portrait and a
   // yellow gift icon in its top-left corner when the operator has a gift for us.
   const CARD_X = [888, 1023, 1159, 1295, 1431, 1567];
@@ -37,14 +34,15 @@
   const GIFT_CLOSE = px(1848, 42);
 
   // The 帝江号 map shows 总控中枢等级 on top, a region map 地区建设等级 at the bottom
-  // left. The map title sits on a busy background and OCR often misses it.
+  // left or 地区总览 at the bottom right. The map title sits on a busy background and
+  // OCR often misses it.
   const SHIP_MAP = [0.4, 0.02, 0.2, 0.06];
-  E.screen('map', look => look.has(/总控中枢等级/, SHIP_MAP) || look.has(/地区建设等级/, [0, 0.89, 0.12, 0.05]), 71);
+  E.screen('map', look => look.has(/总控中枢等级/, SHIP_MAP) || look.has(/地区建设等级/, [0, 0.89, 0.12, 0.05]) || look.has('地区总览', [0.8, 0.88, 0.18, 0.08]), 71);
   E.screen('contact', look => look.has(/[干千于]员联络$/, [0.12, 0.16, 0.12, 0.05]) && look.has(/确认联络|未选择/, [0.7, 0.78, 0.2, 0.06]), 76);
   E.screen('operator_talk', look => look.has(/赠送礼物|收下礼物/, [0.75, 0.55, 0.22, 0.15]) && look.has(/离开/, [0.75, 0.65, 0.22, 0.12]), 74);
   // A spoken line: the speaker's name and the line at the bottom, waiting for a click.
   // Its corner shows an ESC hint too, which the world screen keys on.
-  E.screen('talk_line', look => look.has(/[\u4e00-\u9fff]{2}/, [0.42, 0.79, 0.16, 0.05]) && look.has(/\S{6,}/, [0.08, 0.85, 0.84, 0.07]), 73);
+  E.screen('talk_line', look => look.has(/[\u4e00-\u9fff]/, [0.42, 0.79, 0.16, 0.05]) && look.has(/\S{6,}/, [0.08, 0.85, 0.84, 0.07]), 73);
   E.nav.dismiss.talk_line = async () => { await E.click(0.5, 0.6); };
   // OCR misses either anchor on some frames.
   E.screen('gift', look => look.has(/赠送礼物$/, [0, 0, 0.15, 0.06]) || look.has('今日赠礼可提升的信赖', [0.78, 0.35, 0.2, 0.05]) || look.has('赠礼记录', [0.02, 0.8, 0.08, 0.05]), 77);
@@ -87,112 +85,198 @@
     await E.sleep(1500);
     let look = await E.look();
     const go = E.find(look.texts, '前往传送', [0.7, 0.85, 0.15, 0.1]);
-    if (!go) { await t.save(look.frame, 'kiosk-panel'); E.fail('kiosk_panel_without_前往传送'); }
+    if (!go) {
+      await t.save(look.frame, 'kiosk-panel');
+      // A click beside the icon opens a new custom marker instead: cancel it.
+      const cancel = E.find(look.texts, '取消', [0.75, 0.88, 0.12, 0.08]);
+      if (cancel) { await E.click(...E.center(cancel)); await E.sleep(800); }
+      E.fail('kiosk_panel_without_前往传送');
+    }
     await E.click(...E.center(go));
     await E.sleep(1500);
     look = await E.look();
-    const jump = E.find(look.texts, /^传送$/, [0.85, 0.85, 0.15, 0.1]);
+    // The button's icon can read as trailing characters.
+    const jump = E.find(look.texts, /^传送/, [0.85, 0.85, 0.15, 0.1]);
     if (!jump) { await t.save(look.frame, 'anchor-panel'); E.fail('anchor_panel_without_传送'); }
     await E.click(...E.center(jump));
     await E.waitFor('world', { timeout: 60000 });
     await E.sleep(1000);
   }
 
-  // The kiosk's offset from the player on the minimap (px, east and south positive).
-  async function kioskOffset() {
-    const frame = await E.grab();
-    const icon = await E.match(frame, 'mini_contact_station', MINIMAP);
-    return { score: icon.score, dx: (icon.x + icon.w / 2) * frame.width - MINIMAP_CENTER[0], dy: (icon.y + icon.h / 2) * frame.height - MINIMAP_CENTER[1] };
+  // ---- where the player is -------------------------------------------------------
+  // The minimap is north up, centered on the player, and half transparent over the
+  // scene. Its ring, without the player's arrow at the center, scaled by 0.65 is
+  // matched by normalized cross-correlation against MaaEnd's floor plan of the
+  // 帝江号 (maps/omv_base01.png; transparent outside the ship). Positions are base
+  // map px. Scale measured 2026-10-23: at 0.65 the match scored 0.77 against 0.61
+  // for the next place. In the 中央环厅 a position agreed with the kiosk icon's own
+  // offset on the minimap; in the long east-west corridor at the teleport anchor
+  // (about (156, 190) by the 帝江号 map) it read 6 px west.
+  const SHIP = { name: 'omv_base01', scale: 0.65, minimap: [61 / 1920, 66 / 1080, 200 / 1920, 200 / 1080], center: [100, 100.5] };
+  const RING = [15, 72];
+  let ship = null;
+  async function loadShip() {
+    if (ship) return ship;
+    const url = (window.__engineTemplates || {})[SHIP.name];
+    if (!url) E.fail(`template_missing_${SHIP.name}`);
+    const image = new Image(); image.src = url; await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width; canvas.height = image.height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(image, 0, 0);
+    const d = context.getImageData(0, 0, image.width, image.height).data;
+    const n = image.width * image.height, gray = new Float32Array(n), solid = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      gray[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+      solid[i] = d[i * 4 + 3] > 128 ? 1 : 0;
+    }
+    return ship = { w: image.width, h: image.height, gray, solid };
+  }
+  // The ring's pixels, scaled to base map px, relative to the player.
+  function ringPixels(frame) {
+    const s = SHIP.scale, canvas = E.crop(frame, SHIP.minimap, s);
+    const d = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height).data;
+    const [cx, cy] = [SHIP.center[0] * s, SHIP.center[1] * s], pixels = [];
+    for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) {
+      const r = Math.hypot(x - cx, y - cy);
+      if (r < RING[0] * s || r > RING[1] * s) continue;
+      const i = (y * canvas.width + x) * 4;
+      pixels.push([Math.round(x - cx), Math.round(y - cy), 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]]);
+    }
+    return pixels;
+  }
+  function correlate(map, pixels, px, py) {
+    let n = 0, sa = 0, sb = 0, saa = 0, sbb = 0, sab = 0;
+    for (const [dx, dy, a] of pixels) {
+      const x = px + dx, y = py + dy;
+      if (x < 0 || y < 0 || x >= map.w || y >= map.h) continue;
+      const j = y * map.w + x;
+      if (!map.solid[j]) continue;
+      const b = map.gray[j];
+      n++; sa += a; sb += b; saa += a * a; sbb += b * b; sab += a * b;
+    }
+    if (n < pixels.length * 0.6) return -1;
+    const va = saa - sa * sa / n, vb = sbb - sb * sb / n;
+    return va < 1 || vb < 1 ? -1 : (sab - sa * sb / n) / Math.sqrt(va * vb);
+  }
+  // Near a known position a small window is enough; otherwise the whole ship.
+  async function locate(near = null) {
+    const map = await loadShip();
+    const pixels = ringPixels(await E.grab());
+    const search = (pts, [x0, x1, y0, y1], step) => {
+      let best = { score: -2, x: 0, y: 0 };
+      for (let y = y0; y <= y1; y += step) for (let x = x0; x <= x1; x += step) {
+        const score = correlate(map, pts, x, y);
+        if (score > best.score) best = { score, x, y };
+      }
+      return best;
+    };
+    // The whole ship coarsely (every 2nd px, a quarter of the pixels), then around.
+    const area = near ? [near.x - 10, near.x + 10, near.y - 10, near.y + 10]
+      : (({ x, y }) => [x - 2, x + 2, y - 2, y + 2])(search(pixels.filter((_, i) => i % 4 === 0), [40, map.w - 40, 60, map.h - 60], 2));
+    return search(pixels, area, 1);
   }
 
-  // The player's arrow: a white dart, mirror-symmetric about its heading, its tip
-  // farther from the centroid than its notched back. Degrees, east 0, counterclockwise
-  // positive (north 90); null when the arrow is not visible.
-  function arrowHeading(frame) {
-    const c = frame.canvas, sx = c.width / 1920, sy = c.height / 1080;
-    const [X0, Y0, N] = [145, 150, 33];
-    const d = c.getContext('2d', { willReadFrequently: true })
-      .getImageData(Math.round(X0 * sx), Math.round(Y0 * sy), Math.round(N * sx), Math.round(N * sy));
-    const W = d.width, H = d.height, mask = new Uint8Array(W * H), pts = [];
-    const [ox, oy] = [(MINIMAP_CENTER[0] - X0) * sx, (MINIMAP_CENTER[1] - Y0) * sy];
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const i = (y * W + x) * 4;
-      if (Math.min(d.data[i], d.data[i + 1], d.data[i + 2]) > 235 && Math.hypot(x - ox, y - oy) <= 11 * sx) {
-        mask[y * W + x] = 1;
-        pts.push([x, y]);
-      }
-    }
-    if (pts.length < 30) return null;
-    const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-    let axis = null;
-    for (let deg = 0; deg < 180; deg += 2) {
-      const ux = Math.cos(deg * Math.PI / 180), uy = -Math.sin(deg * Math.PI / 180);
-      let hit = 0;
-      for (const [x, y] of pts) {
-        const px = x - cx, py = y - cy, along = px * ux + py * uy;
-        const mx = Math.round(cx + 2 * along * ux - px), my = Math.round(cy + 2 * along * uy - py);
-        if (mx >= 0 && my >= 0 && mx < W && my < H && mask[my * W + mx]) hit++;
-      }
-      if (!axis || hit > axis.hit) axis = { deg, hit, ux, uy };
-    }
-    let front = -Infinity, back = Infinity;
-    for (const [x, y] of pts) {
-      const along = (x - cx) * axis.ux + (y - cy) * axis.uy;
-      front = Math.max(front, along);
-      back = Math.min(back, along);
-    }
-    return wrap(front >= -back ? axis.deg : axis.deg - 180);
-  }
   const wrap = deg => ((deg % 360) + 540) % 360 - 180;
 
-  // W turns the character to the camera's heading, so a short step shows the camera's
-  // heading on the arrow; turn the camera by the difference until it matches.
-  async function face(target) {
-    for (let i = 0; i < 6; i++) {
-      await E.key('KeyW', { hold: 200 });
-      await E.sleep(300);
-      const heading = arrowHeading(await E.grab());
-      if (heading === null) continue;
-      const diff = wrap(target - heading);
-      if (Math.abs(diff) < 8) return;
-      await E.turn(-diff / 360 * FULL_TURN);
-      await E.sleep(250);
+  // Pitch the camera down to the stop, then up by a fixed amount: a level view over
+  // the character's shoulder, whatever the pitch was.
+  async function levelCamera() {
+    for (let i = 0; i < 6; i++) { await E.turn(0, 0.3, { ms: 200 }); await E.sleep(100); }
+    await E.turn(0, -0.35);
+    await E.sleep(400);
+  }
+
+  // Walking without turning the camera: W/A/S/D and their pairs move in 8 directions
+  // relative to the camera, whose heading stays put. Turning it by mouse was unreliable
+  // (its gain changes with window focus, the arrow lags the character), so the
+  // camera's heading is inferred from where each move actually went, and every move
+  // picks the key pair closest to the wanted bearing. Bearings in degrees, east 0,
+  // counterclockwise positive.
+  const MOVES = [[0, ['KeyW']], [45, ['KeyW', 'KeyA']], [90, ['KeyA']], [135, ['KeyS', 'KeyA']],
+    [180, ['KeyS']], [-135, ['KeyS', 'KeyD']], [-90, ['KeyD']], [-45, ['KeyW', 'KeyD']]];
+  let cameraHeading = null;
+  const press = (keys, hold) => Promise.all(keys.map(key => E.key(key, { hold })));
+  // Move toward `bearing` for `hold` ms; `where()` reads the position (any units with
+  // y south) before and after, and the move updates the camera heading. Returns the
+  // new position and the distance moved.
+  async function step(bearing, hold, where, from) {
+    const [angle, keys] = cameraHeading === null ? MOVES[0]
+      : MOVES.reduce((best, m) => Math.abs(wrap(cameraHeading + m[0] - bearing)) < Math.abs(wrap(cameraHeading + best[0] - bearing)) ? m : best);
+    await press(keys, hold);
+    await E.sleep(250);
+    const to = await where(from);
+    const moved = Math.hypot(to.x - from.x, to.y - from.y);
+    if (moved >= 1.5) cameraHeading = wrap(Math.atan2(-(to.y - from.y), to.x - from.x) * 180 / Math.PI - angle);
+    return { to, moved };
+  }
+
+  // Shift toggles between walking and running; something (a stray Shift, the game
+  // itself) left the character walking at about a third of the speed (2026-10-23).
+  // A trial move tells which; a slow one turns running back on.
+  async function ensureRunning() {
+    for (let i = 0; i < 2; i++) {
+      const from = await locate();
+      const { to, moved } = await step(cameraHeading === null ? 0 : cameraHeading, 1000, locate, from);
+      E.log(`operator_gifts trial move ${moved.toFixed(1)} px`);
+      if (to.score < 0.5 || moved < 0.5 || moved >= 3) return;
+      await E.key('ShiftLeft');
+      await E.sleep(500);
     }
   }
 
-  // From the teleport anchor the corridor runs east into the 中央环厅: head east until
-  // the kiosk is due north (or the way is blocked), then straight for the kiosk. A step
-  // that does not move the map detours to alternating sides.
+  // Walk to a point (base map px), locating after every move. A move that does not
+  // get anywhere sidesteps to alternating sides.
+  async function walkTo(t, target, { tolerance = 2, steps = 25 } = {}) {
+    let at = await locate(), side = 1;
+    for (let n = 0; n < steps; n++) {
+      if (at.score < 0.5) { await t.save(await E.grab(), 'minimap-not-located'); E.fail(`minimap_not_located_${at.score.toFixed(2)}`); }
+      const [dx, dy] = [target[0] - at.x, target[1] - at.y];
+      const distance = Math.hypot(dx, dy);
+      if (distance <= tolerance) return at;
+      // About 5 base map px per second once running.
+      const bearing = Math.atan2(-dy, dx) * 180 / Math.PI;
+      const { to, moved } = await step(bearing, Math.max(300, Math.min(1500, distance * 200)), locate, at);
+      E.log(`operator_gifts walk (${target}) step ${n} at=${to.x},${to.y} score=${to.score.toFixed(2)} moved=${moved.toFixed(1)} camera=${Math.round(cameraHeading ?? NaN)}`);
+      if (moved < 1.5) { await step(bearing + side * 90, 500, locate, to); side = -side; }
+      at = await locate(to);
+    }
+    await t.save(await E.grab(), 'walk-target-not-reached');
+    E.fail(`walk_to_${target.join('_')}_not_reached`);
+  }
+
+  // From the teleport anchor a counter stands right to the east: step south of it,
+  // east into the 中央环厅, then to a spot south of the kiosk and north from there to
+  // its tablet, which takes the prompt from the south. The kiosk's icon sits at
+  // about (183, 172) on the ship map (three readings within 1 px, 2026-10-23); the
+  // prompt showed about 4 px south of it.
+  const ROUTE = [[157, 194], [183, 190], [183, 179]];
+  const KIOSK_AT = [183, 172];
   async function walkToKiosk(t) {
-    let side = 1, blocked = false, corridor = true, last = Infinity;
-    for (let step = 0; step < 40; step++) {
-      if (kioskPrompt(await E.look())) return;
-      const at = await kioskOffset();
-      // Under the player's arrow the icon no longer matches: close; step around below.
-      if (at.score < 0.5 && last < 10) break;
-      if (at.score < 0.5) { await t.save(await E.grab(), 'minimap-without-kiosk'); E.fail(`kiosk_not_on_minimap_${at.score.toFixed(2)}`); }
-      const distance = last = Math.hypot(at.dx, at.dy);
-      if (distance < 2) break;
-      if (corridor && at.dx < 5) corridor = false;
-      let bearing = corridor ? 0 : Math.atan2(-at.dy, at.dx) * 180 / Math.PI;
-      if (blocked) bearing += side * 55;
-      await face(bearing);
-      // About 7 minimap px per second of walking; short steps near the kiosk.
-      await E.key('KeyW', { hold: Math.max(150, Math.min(1000, distance * 110)) });
-      await E.sleep(250);
-      const next = await kioskOffset();
-      const moved = Math.hypot(next.dx - at.dx, next.dy - at.dy);
-      E.log(`operator_gifts step ${step} bearing=${Math.round(bearing)} dx=${next.dx.toFixed(0)} dy=${next.dy.toFixed(0)} moved=${moved.toFixed(1)}`);
-      blocked = moved < 1.5;
-      if (blocked) { side = -side; if (corridor && step > 2) corridor = false; }
+    const prompt = async () => !!kioskPrompt(await E.look());
+    if (await prompt()) return;
+    await ensureRunning();
+    let at = await locate();
+    // Inside the hall already: skip the corridor.
+    const start = at.x > 168 ? 1 : 0;
+    for (const [i, point] of ROUTE.slice(start).entries()) at = await walkTo(t, point, { tolerance: i === ROUTE.length - start - 1 ? 1.5 : 2 });
+    // North in short steps, held on the kiosk's column: the prompt's zone is narrow
+    // east to west.
+    for (let i = 0; i < 6; i++) {
+      if (await prompt()) return;
+      const off = at.x - KIOSK_AT[0];
+      ({ to: at } = await step(90 + Math.max(-40, Math.min(40, off * 20)), 250, locate, at));
+      await E.sleep(300);
     }
-    // The prompt shows only next to the kiosk's tablet and after a move.
-    for (const step of ['KeyS', 'KeyW', 'KeyD', 'KeyA', 'KeyA', 'KeyD', 'KeyW', 'KeyS', 'KeyS']) {
-      if (kioskPrompt(await E.look())) return;
-      await E.key(step, { hold: 300 });
-      await E.sleep(400);
+    // Around the spot, coming back after each try.
+    for (const bearing of [45, 135, -45, -135, 0, 180]) {
+      if (await prompt()) return;
+      ({ to: at } = await step(bearing, 300, locate, at));
+      await E.sleep(300);
+      if (await prompt()) return;
+      ({ to: at } = await step(bearing + 180, 300, locate, at));
     }
-    if (kioskPrompt(await E.look())) return;
+    if (await prompt()) return;
     await t.save(await E.grab(), 'kiosk-not-reached');
     E.fail('kiosk_prompt_not_found');
   }
@@ -233,28 +317,17 @@
     return name.text.match(NAME)[1];
   }
 
-  // Same-size crops of a card portrait, compared by mean absolute difference.
-  // Right of the gift icon, which can appear after a gift.
-  const portrait = (frame, x, y) => E.crop(frame, [x / 1920 - 0.012, y / 1080 - 0.035, 0.04, 0.045]);
-  const portraitDiff = (a, b) => {
-    const da = a.getContext('2d').getImageData(0, 0, a.width, a.height).data;
-    const db = b.getContext('2d').getImageData(0, 0, b.width, b.height).data;
-    let sum = 0;
-    for (let i = 0; i < da.length; i += 4) sum += Math.abs(da[i] - db[i]) + Math.abs(da[i + 1] - db[i + 1]) + Math.abs(da[i + 2] - db[i + 2]);
-    return sum / (da.length / 4 * 3);
-  };
-
   // Cards in order (lowest 信赖度 first after the gift-icon ones), without the gift-icon
-  // ones, the ones at 200%, and the ones already handled in this run.
-  function candidates(look, handled) {
+  // ones and the ones at 200%.
+  function candidates(look) {
     const cards = [];
     for (const row of CARD_ROWS) for (const x of CARD_X) {
       const value = E.find(look.texts, /\d{2,3}%/, [x / 1920 - 0.045, row.trust - 0.016, 0.07, 0.032]);
       const [r, g, b] = E.color(look.frame, [(x - 50) / 1920, (row.icon - 8) / 1080, 8 / 1920, 14 / 1080]);
       const gift = r > 170 && g > 150 && b < 110;
-      cards.push({ x, y: row.y, trust: value ? percent(value.text) : null, gift, face: portrait(look.frame, x, row.y) });
+      cards.push({ x, y: row.y, trust: value ? percent(value.text) : null, gift });
     }
-    return cards.filter(c => !c.gift && c.trust !== null && c.trust < 200 && !handled.some(h => portraitDiff(h, c.face) < 12));
+    return cards.filter(c => !c.gift && c.trust !== null && c.trust < 200);
   }
 
   // An operator's tag: the name, with a status line (工作中 / 休息中) under it while
@@ -272,52 +345,49 @@
     }
     return found;
   };
-  // OCR drops or misreads a character now and then: two shared characters (one for
-  // names of one or two characters) count as the same name.
-  const sameName = (text, name) => [...name].filter(c => text.includes(c)).length >= Math.max(1, Math.min(2, name.length - 1));
+  // Short names must match whole (one shared character matched 赛希 to a stranger);
+  // longer ones may lose one character to OCR.
+  const sameName = (text, name) => [...name].filter(c => text.includes(c)).length >= (name.length <= 2 ? name.length : name.length - 1);
 
-  // Turn toward the operator's tag, walk until the prompt "F <name>" shows.
-  async function walkToOperator(name) {
-    let seen = false, lost = 0, misses = 0, side = 1;
-    for (let i = 0; i < 40; i++) {
+  // Summoned operators walk up and stop a few steps away; their entry joins the
+  // interaction list (right of center, "F <name>" with a chat icon) only once the
+  // character is close and faces them. As MaaEnd does, wait for the entry and
+  // Alt+click it; to get there, move toward the operator's name tag: its place on
+  // screen gives its bearing from the camera's heading (about 90° across the view).
+  // With no tag in view, try a few bearings in turn.
+  const VIEW = 90;
+  const promptFor = (look, name) => E.findAll(look.texts, /\S/, PROMPTS)
+    .find(p => !KIOSK.test(p.text) && p.text.length <= name.length + 3 && sameName(p.text, name)) || null;
+  async function reachOperator(t, name) {
+    // A talk leaves the camera looking down at the player, which puts name tags above
+    // the frame (2026-10-23).
+    await levelCamera();
+    const around = [0, 90, 180, -90, 45, 135, -135, -45];
+    let at = await locate(), tries = 0;
+    for (let i = 0; i < 14; i++) {
       const look = await E.look();
-      if (E.findAll(look.texts, /\S/, PROMPTS).some(p => p.text.length <= 8 && !KIOSK.test(p.text) && sameName(p.text, name))) return;
-      const tag = tags(look).find(t => sameName(t.name, name));
-      if (!tag) {
-        if (seen && ++misses <= 2) { await E.sleep(300); continue; }
-        misses = 0;
-        if (++lost > 18) break;
-        await E.turn(0.3 * side);
-        await E.sleep(450);
-        continue;
-      }
-      lost = 0; misses = 0; side = tag.cx >= 0.5 ? 1 : -1; seen = true;
-      if (Math.abs(tag.cx - 0.5) > 0.07) { await E.turn((tag.cx - 0.5) * 1.5); await E.sleep(500); continue; }
-      await E.key('KeyW', { hold: 300 });
-      await E.sleep(450);
+      const entry = promptFor(look, name);
+      if (entry) return entry;
+      const tag = tags(look).find(tag => tag.name.length <= name.length + 1 && sameName(tag.name, name));
+      const bearing = tag && cameraHeading !== null ? cameraHeading - (tag.cx - 0.5) * VIEW
+        : (cameraHeading ?? 0) + around[tries++ % around.length];
+      const { to } = await step(bearing, tag ? 400 : 250, locate, at);
+      at = to;
+      await E.sleep(300);
     }
-    E.fail(seen ? `operator_${name}_not_reached` : `operator_${name}_not_seen`);
+    await t.save(await E.grab(), 'operator-not-reached');
+    return null;
   }
 
-  // F talks to the highlighted prompt; next to the kiosk that can be the kiosk. Close
-  // it and scroll the prompt list, then try again.
-  async function talk(name) {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      await E.key('KeyF');
-      await E.sleep(2000);
+  // Alt shows the cursor, which takes clicks on the interaction list.
+  async function talk(name, entry) {
+    await E.altClick(...E.center(entry));
+    for (let i = 0; i < 6; i++) {
+      await E.sleep(1200);
       const look = await E.look();
-      if (look.screen === 'contact') {
-        await E.key('Escape');
-        await E.waitFor('world', { timeout: 8000 });
-        await E.wheel(attempt === 0 ? 100 : -100);
-        await E.sleep(500);
-        continue;
-      }
-      if (look.texts.some(t => sameName(t.text, name) && t.y > 0.78 && t.y < 0.85)) {
-        // The greeting line hides the choices until clicked.
-        await E.click(0.5, 0.6);
-        return E.waitFor('operator_talk', { timeout: 8000 });
-      }
+      if (look.screen === 'operator_talk') return look;
+      // The greeting line hides the choices until clicked.
+      if (look.texts.some(t => sameName(t.text, name) && t.y > 0.78 && t.y < 0.85)) await E.click(0.5, 0.6);
     }
     E.fail(`talk_with_${name}_not_opened`);
   }
@@ -327,9 +397,9 @@
     return value ? percent(value.text) : null;
   };
 
-  // Gift screen: sort by 偏好 (best liked first; the screen opens on 默认 every time)
-  // and take the first tile we can give.
-  async function chooseGift() {
+  // Gift screen: sort by 偏好, descending (it opens on 默认 every time); liked gifts
+  // come first. A gift is liked when one of its hobby tags is the operator's.
+  async function sortByPreference() {
     await E.click(...GIFT_SORT_BOX);
     await E.sleep(1000);
     const menu = await E.look();
@@ -343,18 +413,50 @@
       await E.sleep(1000);
       look = await E.look();
     }
-    for (const x of GIFT_X) {
-      const count = await E.readNumber(look.frame, [x / 1920 - 0.03, 0.82, 0.06, 0.035]);
-      if (!count) continue;
-      await E.click(x / 1920, GIFT_Y);
-      await E.sleep(800);
-      const picked = await E.look();
-      const confirm = E.find(picked.texts, '确认赠送', [0.8, 0.87, 0.15, 0.07]);
-      if (!confirm) continue;
-      const gift = E.find(picked.texts, /\S{2,}/, [0.1, 0.49, 0.12, 0.04])?.text || '?';
-      return { gift, count, confirm, look: picked };
+    return look;
+  }
+  // Hobby tags: two-character labels (生活, 自然, 公益, 科技, 益智, ...).
+  const HOBBIES = /^[\u4e00-\u9fff]{2}$/;
+  const hobbies = (look, roi) => E.findAll(look.texts, HOBBIES, roi).map(t => t.text);
+  const tileCounts = async look => {
+    const counts = [];
+    for (const x of GIFT_X) counts.push({ x, count: await E.readNumber(look.frame, [x / 1920 - 0.03, 0.82, 0.06, 0.035]) || 0 });
+    return counts;
+  };
+  // Click a tile n times and read the selected count on its corner badge.
+  async function selectTile(x, n) {
+    for (let i = 0; i < n; i++) { await E.click(x / 1920, GIFT_Y); await E.sleep(i === 0 ? 800 : 150); }
+    await E.sleep(600);
+    const look = await E.look();
+    const badge = await E.readNumber(look.frame, [x / 1920 - 0.035, 0.715, 0.055, 0.03]);
+    // The detail card's title, its first line; the card grows upward with its text.
+    const title = E.findAll(look.texts, /^[\u4e00-\u9fff]{2,}$/, [0.11, 0.46, 0.14, 0.08]).sort((a, b) => a.y - b.y)[0];
+    return { look, badge, gift: title?.text || '?' };
+  }
+
+  // One batch: 3 of the best-liked gift in stock, else 30 of the most-stocked gift.
+  async function chooseBatch(screen) {
+    const look = await sortByPreference();
+    const theirs = hobbies(screen, [0.8, 0.27, 0.13, 0.03]);
+    const counts = await tileCounts(look);
+    const first = counts.find(c => c.count > 0);
+    if (first) {
+      const probe = await selectTile(first.x, 1);
+      const shared = hobbies(probe.look, [0.23, 0.645, 0.12, 0.035]).filter(tag => theirs.includes(tag));
+      if (shared.length) {
+        const n = Math.min(LIKED_BATCH, first.count);
+        const chosen = n > 1 ? await selectTile(first.x, n - 1) : probe;
+        return { ...chosen, n, count: first.count, liked: shared };
+      }
+      const clear = E.find(probe.look.texts, '清空选择', [0.65, 0.88, 0.12, 0.06]);
+      if (!clear) E.fail('gift_without_清空选择');
+      await E.click(...E.center(clear));
+      await E.sleep(600);
     }
-    return null;
+    const most = counts.filter(c => c.count >= OTHER_BATCH).sort((a, b) => b.count - a.count)[0];
+    if (!most) return null;
+    const chosen = await selectTile(most.x, OTHER_BATCH);
+    return { ...chosen, n: OTHER_BATCH, count: most.count, liked: [] };
   }
 
   // 离开 (or 暂时离开 when the operator offers a gift), then the farewell line.
@@ -374,82 +476,109 @@
   // Esc does not end a talk.
   E.nav.dismiss.operator_talk = leaveTalk;
 
-  async function giftOperator(t, name, index) {
-    let talkLook = await E.waitFor('operator_talk', { timeout: 8000 });
-    let given = 0;
-    for (let n = 0; n < MAX_GIFTS; n++) {
-      const before = trustOf(talkLook);
-      const open = E.find(talkLook.texts, /赠送礼物/, [0.75, 0.55, 0.22, 0.15]);
-      await E.click(...E.center(open));
-      let look = await E.waitFor('gift', { timeout: 8000 });
-      const level = E.find(look.texts, /^[高中低]$/, [0.93, 0.35, 0.06, 0.05])?.text || null;
-      if (n === 0) await t.save(look.frame, `op${index}-gift-screen`);
-      // The level previews the selection: the gift that lowers it is still given;
-      // the next opening shows the lower level and ends the round.
-      let stop = level !== '高' ? `今日赠礼可提升的信赖 ${level ?? 'unread'}` : null;
-      const choice = stop ? null : await chooseGift();
-      if (!stop && !choice) stop = 'no gift left to give';
-      if (stop) {
-        t.note(`${name}: ${stop} after ${given} gift(s)`);
-        // The gift screen's close button ends the whole talk with a farewell line.
-        await E.click(...GIFT_CLOSE);
-        for (let i = 0; i < 5; i++) {
-          const back = await E.waitFor(['operator_talk', 'talk_line', 'world'], { timeout: 8000 });
-          if (back.screen === 'world') return given;
-          if (back.screen === 'operator_talk') { talkLook = back; break; }
-          await E.click(0.5, 0.6);
-        }
-        break;
+  async function giftOperator(t, name, index, talkLook) {
+    const before = trustOf(talkLook);
+    const open = E.find(talkLook.texts, /赠送礼物/, [0.75, 0.55, 0.22, 0.15]);
+    await E.click(...E.center(open));
+    const screen = await E.waitFor('gift', { timeout: 8000 });
+    const level = E.find(screen.texts, /^[高中低]$/, [0.93, 0.35, 0.06, 0.05])?.text || null;
+    await t.save(screen.frame, `op${index}-gift-screen`);
+    // Gifted already today when it is no longer 高.
+    let stop = level !== '高' ? `今日赠礼可提升的信赖 ${level ?? 'unread'}` : null;
+    const batch = stop ? null : await chooseBatch(screen);
+    if (!stop && !batch) stop = `no liked gift and none with ${OTHER_BATCH}+ in stock`;
+    if (!stop && batch.badge !== batch.n) stop = `selected ${batch.badge} of ${batch.gift}, wanted ${batch.n}`;
+    if (stop) {
+      t.note(`${name}: ${stop}; nothing given`);
+      E.log(`operator_gifts ${name} skipped: ${stop}`);
+      // The gift screen's close button ends the whole talk with a farewell line.
+      await E.click(...GIFT_CLOSE);
+      for (let i = 0; i < 5; i++) {
+        const back = await E.waitFor(['operator_talk', 'talk_line', 'world'], { timeout: 8000 });
+        if (back.screen === 'world') return false;
+        if (back.screen === 'operator_talk') { await leaveTalk(back); return false; }
+        await E.click(0.5, 0.6);
       }
-      const shown = await t.save(choice.look.frame, `op${index}-gift${n}`);
-      await E.click(...E.center(choice.confirm));
-      await E.sleep(2500);
-      // The thank-you line, then the choices again.
-      await E.click(0.5, 0.6);
-      talkLook = await E.waitFor('operator_talk', { timeout: 8000 });
-      const after = trustOf(talkLook);
-      const frame = await t.save(talkLook.frame, `op${index}-after${n}`);
-      t.change({ what: `${name} ← ${choice.gift}`, gift: { before: choice.count, after: choice.count - 1 }, trust: { before, after }, frames: [shown, frame] });
-      given++;
+      return false;
     }
+    const shown = await t.save(batch.look.frame, `op${index}-batch`);
+    const confirm = E.find(batch.look.texts, '确认赠送', [0.8, 0.87, 0.15, 0.07]);
+    if (!confirm) E.fail('batch_without_确认赠送');
+    await E.click(...E.center(confirm));
+    await E.sleep(2500);
+    // The thank-you line, then the choices again.
+    await E.click(0.5, 0.6);
+    talkLook = await E.waitFor('operator_talk', { timeout: 8000 });
+    const after = trustOf(talkLook);
+    const frame = await t.save(talkLook.frame, `op${index}-after`);
+    t.change({ what: `${name} ← ${batch.n} ${batch.gift}${batch.liked.length ? ` (likes ${batch.liked.join('、')})` : ''}`,
+      gift: { before: batch.count, after: batch.count - batch.n }, trust: { before, after }, frames: [shown, frame] });
+    if (after === null || before === null || after <= before) t.note(`${name}: 信赖度 ${before} → ${after}`);
     await leaveTalk(talkLook);
-    return given;
+    return true;
   }
 
   E.task('operator_gifts', {
     title: '赠送干员礼物',
     start: 'world',
     async run(t) {
-      const handled = [];
-      for (let index = 0; index < OPERATORS; index++) {
-        if (!kioskPrompt(await E.look())) { await teleport(t); await walkToKiosk(t); }
-        const contact = await openContact();
-        if (index === 0) await t.save(contact.frame, 'contact');
-        const card = candidates(contact, handled)[0];
-        if (!card) { t.note('no operator left below 200% without a gift icon'); await E.key('Escape'); break; }
-        handled.push(card.face);
-        const name = await cardName(card);
-        await E.click(card.x / 1920, card.y / 1080);
-        await E.sleep(800);
-        const picked = await E.look();
-        const confirm = E.find(picked.texts, '确认联络', [0.7, 0.78, 0.2, 0.06]);
-        if (!confirm) E.fail('card_not_selected');
-        await E.click(...E.center(confirm));
-        await E.sleep(1000);
-        await E.waitFor('world', { timeout: 8000 });
-        // Step away from the kiosk so its prompt does not cover the operator's.
-        await E.key('KeyS', { hold: 1200 });
-        await walkToOperator(name);
-        const talkLook = await talk(name);
-        // The talk shows the 信赖度; it must be the summoned card's.
-        const shown = trustOf(talkLook);
-        E.log(`operator_gifts operator ${index} ${name} at ${shown}% card ${card.trust}%`);
-        if (shown !== card.trust) {
-          await t.save(talkLook.frame, `op${index}-other-operator`);
-          await leaveTalk(talkLook);
-          E.fail(`talk_shows_${shown}_not_${name}_${card.trust}`);
+      // Summoned operators leave after a short stay; whoever was not reached by then is
+      // summoned again in the next round.
+      const done = new Set();
+      for (let round = 0; round < 3 && done.size < OPERATORS; round++) {
+        if (!kioskPrompt(await E.look())) {
+          // Next to the kiosk already (its prompt needs a move to show), no teleport:
+          // on the map the player's arrow would cover the kiosk's icon.
+          const at = await locate();
+          if (at.score < 0.5 || Math.hypot(at.x - KIOSK_AT[0], at.y - KIOSK_AT[1]) > 25) await teleport(t);
+          await walkToKiosk(t);
         }
-        await giftOperator(t, name, index);
+        const contact = await openContact();
+        if (round === 0) await t.save(contact.frame, 'contact');
+        // Lowest 信赖度 first, without gift-icon cards, those at 200%, and those done.
+        const cards = [];
+        for (const card of candidates(contact)) {
+          if (cards.length >= OPERATORS - done.size) break;
+          card.name = await cardName(card);
+          if (!done.has(card.name)) cards.push(card);
+        }
+        if (!cards.length) {
+          await E.key('Escape');
+          if (round === 0) return t.skip('no operator below 200% without a gift icon');
+          break;
+        }
+        // Up to 3 at once, as MaaEnd does: each selected card gets a numbered yellow
+        // badge in its top-right corner.
+        for (const card of cards) { await E.click(card.x / 1920, card.y / 1080); await E.sleep(600); }
+        await E.park({ at: [0.5, 0.03], settle: 600 });
+        const picked = await E.look();
+        for (const card of cards) {
+          // The badge's left edge, clear of its digit.
+          const [r, g, b] = E.color(picked.frame, [(card.x + 29) / 1920, (card.y - 55) / 1080, 5 / 1920, 18 / 1080]);
+          if (!(r > 190 && g > 180 && b < 90)) { await t.save(picked.frame, 'selection'); E.fail(`card_${card.name}_not_selected`); }
+        }
+        await t.save(picked.frame, `round${round}-selection`);
+        const confirm = E.find(picked.texts, '确认联络', [0.7, 0.78, 0.2, 0.06]);
+        if (!confirm) E.fail('contact_without_确认联络');
+        await E.click(...E.center(confirm));
+        await E.waitFor('world', { timeout: 10000 });
+        E.log(`operator_gifts round ${round} summoned ${cards.map(c => `${c.name} ${c.trust}%`).join(', ')}`);
+        for (const card of cards) {
+          const entry = await reachOperator(t, card.name);
+          if (!entry) { t.note(`round ${round}: ${card.name} not reached`); continue; }
+          const index = done.size;
+          const talkLook = await talk(card.name, entry);
+          // The talk shows the 信赖度; it must be the summoned card's.
+          const shown = trustOf(talkLook);
+          if (shown !== card.trust) {
+            await t.save(talkLook.frame, `op${index}-other-operator`);
+            t.note(`${card.name}: talk shows ${shown}%, card ${card.trust}%; nothing given`);
+            await leaveTalk(talkLook);
+            continue;
+          }
+          await giftOperator(t, card.name, index, talkLook);
+          done.add(card.name);
+        }
       }
       if (!t.changes.length) return t.skip('no gift given');
       return t.pass(`${t.changes.length} gift(s)`);

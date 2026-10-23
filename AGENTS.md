@@ -25,7 +25,9 @@ A task that cannot produce the record is not done.
 `~/Projects/Repo/endfield` is MaaEnd (AGPL-3.0). Read it to understand game flows,
 UI strings and failure cases. Do not copy its code, pipeline JSON, images,
 coordinates or ROIs into this repository, and do not run it as a dependency.
-Recognition templates are captured from our own stream.
+Recognition templates are captured from our own stream. One exception (Max,
+2026-10-23, personal use only): MaaEnd's MapLocator floor plans may be copied
+unchanged into `maps/`, each listed with its source in `maps/README.md`.
 
 ## Runtime
 

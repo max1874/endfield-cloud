@@ -32,7 +32,8 @@ fn sorted_files(dir: &str, extension: &str) -> Vec<PathBuf> {
 // then the engine core, screens, runner and every task.
 fn bundle_engine() {
     let mut script = String::from("window.__engineTemplates = {\n");
-    for path in sorted_files("templates", "png") {
+    // maps/ holds floor plans from MaaEnd (see maps/README.md), loaded the same way.
+    for path in sorted_files("templates", "png").into_iter().chain(sorted_files("maps", "png")) {
         let name = path.file_stem().unwrap().to_string_lossy();
         let bytes = fs::read(&path).expect("read template");
         script.push_str(&format!("  {name:?}: \"data:image/png;base64,{}\",\n", base64(&bytes)));
@@ -51,6 +52,7 @@ fn bundle_engine() {
     let out = Path::new(&std::env::var("OUT_DIR").unwrap()).join("engine.js");
     fs::write(out, script).expect("write engine bundle");
     println!("cargo:rerun-if-changed=templates");
+    println!("cargo:rerun-if-changed=maps");
     println!("cargo:rerun-if-changed=native/engine");
     println!("cargo:rerun-if-changed=native/engine/tasks");
 }

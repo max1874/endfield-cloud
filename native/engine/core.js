@@ -257,7 +257,9 @@
   const prepare = () => {
     E.check();
     const v = E.video();
-    if (document.pointerLockElement) document.exitPointerLock();
+    // Leave the pointer lock alone: with the window focused the game takes it on
+    // returning to the world, and releasing it reaches the game as Escape, which
+    // opened the menu before every turn (2026-10-23). Synthetic moves work locked.
     // The SDK gates input on its own mouse-enter state. Never call focus(): the SDK's
     // focus handler reads the clipboard.
     v.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
