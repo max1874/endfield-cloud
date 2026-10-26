@@ -3,6 +3,7 @@
 #import <Vision/Vision.h>
 #import <CoreImage/CoreImage.h>
 #import <objc/runtime.h>
+#import <math.h>
 
 // Native services for the automation engine (native/engine/*.js). The engine runs in
 // its own content world: it shares the DOM with the cloud page, so its input events
@@ -101,6 +102,15 @@ static NSArray *RecognizeText(NSData *image, BOOL fast, BOOL digits, NSError **e
         if (text.length > 1000) text = [text substringToIndex:1000];
         fprintf(stderr, "engine %s\n", [text stringByReplacingOccurrencesOfString:@"\n" withString:@" "].UTF8String);
         reply(@YES, nil);
+    } else if ([op isEqualToString:@"sleep"]) {
+        // WebKit throttles chained page timers even when the document reports
+        // visible. Keep key holds and navigation timing on the host clock.
+        NSNumber *value = [body[@"ms"] isKindOfClass:NSNumber.class] ? body[@"ms"] : nil;
+        double ms = value.doubleValue;
+        if (!value || !isfinite(ms) || ms < 0 || ms > 60000) { reply(nil, @"bad_delay"); return; }
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(ms * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+            reply(@YES, nil);
+        });
     } else if ([op isEqualToString:@"ocr"]) {
         NSData *image = DecodeImage(body[@"image"]);
         if (!image) { reply(nil, @"bad_image"); return; }

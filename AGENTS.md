@@ -64,6 +64,11 @@ unchanged into `maps/`, each listed with its source in `maps/README.md`.
   session and triggers the cooldown. The edge-docked 游戏菜单 slides in only on
   `pointerover`/`mouseover` (a bare `mouseenter` does nothing); 退出游戏 is a
   button with that aria-label inside it.
+- Engine timing (2026-10-23): WebKit clamps chained `setTimeout` calls in a covered
+  window despite `document.hidden === false`; a requested 80 ms grew to 876–999 ms.
+  `E.sleep` uses the native bridge clock so movement key holds retain their duration.
+  Do not replace it with page timers. A video whose media time already advanced
+  can be captured without waiting for a frame callback (covered views may omit it).
 - After login the game may show full-screen notices that Esc does not close, such
   as the daily 月卡 reward ("点击确认今日月卡奖励"); navigation clicks their hint.
 - Debug builds poll `~/Library/Application Support/local.endfield.cloud.prototype/dev-inbox/`:

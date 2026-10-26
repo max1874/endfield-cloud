@@ -43,11 +43,21 @@
     if (abort?.signal.aborted) throw new EngineError('stopped', String(abort.signal.reason));
   };
 
+  // Native deadlines avoid WebKit's background timer clamp: a chained 80 ms
+  // timeout became 1 s on 2026-10-23, stretching movement key holds.
   E.sleep = ms => new Promise((resolve, reject) => {
     E.check();
-    const timer = setTimeout(() => { abort?.signal.removeEventListener('abort', onAbort); resolve(); }, ms);
-    const onAbort = () => { clearTimeout(timer); reject(new EngineError('stopped', String(abort.signal.reason))); };
-    abort?.signal.addEventListener('abort', onAbort, { once: true });
+    const signal = abort?.signal;
+    let done = false;
+    const finish = error => {
+      if (done) return;
+      done = true;
+      signal?.removeEventListener('abort', onAbort);
+      if (error) reject(error); else resolve();
+    };
+    const onAbort = () => finish(new EngineError('stopped', String(signal.reason)));
+    signal?.addEventListener('abort', onAbort, { once: true });
+    bridge({ op: 'sleep', ms }).then(() => finish(), error => finish(error));
   });
 
   E.log = (...parts) => bridge({ op: 'log', text: parts.map(p => typeof p === 'string' ? p : JSON.stringify(p)).join(' ') }).catch(() => {});
@@ -75,11 +85,24 @@
   };
 
   // Resolve after a video frame newer than `after` (a video currentTime) is presented.
-  const nextFrame = (v, after) => new Promise(resolve => {
-    if (!v.requestVideoFrameCallback) { resolve(); return; }
-    const timer = setTimeout(resolve, 500);
-    const wait = (_, meta) => meta.mediaTime > after ? (clearTimeout(timer), resolve()) : v.requestVideoFrameCallback(wait);
-    v.requestVideoFrameCallback(wait);
+  const nextFrame = (v, after) => new Promise((resolve, reject) => {
+    // Covered windows may decode video without delivering frame callbacks. An
+    // already newer media time needs no callback wait before drawing the video.
+    if (v.currentTime > after || !v.requestVideoFrameCallback) { resolve(); return; }
+    let callback = null, done = false;
+    const finish = error => {
+      if (done) return;
+      done = true;
+      if (callback !== null) v.cancelVideoFrameCallback?.(callback);
+      if (error) reject(error); else resolve();
+    };
+    const wait = (_, meta) => {
+      if (done) return;
+      if (meta.mediaTime > after) finish();
+      else callback = v.requestVideoFrameCallback(wait);
+    };
+    callback = v.requestVideoFrameCallback(wait);
+    E.sleep(500).then(() => finish(), error => finish(error));
   });
 
   let lastTime = -1;
