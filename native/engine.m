@@ -133,7 +133,7 @@ static NSArray *RecognizeText(NSData *image, BOOL fast, BOOL digits, NSError **e
         reply(text ?: NSNull.null, nil);
     } else if ([op isEqualToString:@"status"]) {
         NSString *text = [body[@"text"] isKindOfClass:NSString.class] ? body[@"text"] : @"";
-        message.webView.window.title = text.length ? [@"云终末地 · " stringByAppendingString:text] : @"云终末地 · Tauri 原型";
+        message.webView.window.title = text.length ? [@"云终末地 · " stringByAppendingString:text] : @"云终末地";
         reply(@YES, nil);
     } else {
         reply(nil, @"unknown_op");

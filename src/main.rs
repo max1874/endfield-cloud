@@ -117,7 +117,7 @@ fn create_window(
 ) -> tauri::Result<WebviewWindow> {
     let popup_app = app.clone();
     let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::External(url))
-        .title("云终末地 · Tauri 原型")
+        .title("云终末地")
         .inner_size(1280.0, 720.0)
         .disable_drag_drop_handler()
         .on_page_load(|window, payload| {
@@ -180,7 +180,7 @@ fn create_window(
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
-            eprintln!("prototype_started version=0.1.0 engine=WKWebView");
+            eprintln!("prototype_started version={} engine=WKWebView", env!("CARGO_PKG_VERSION"));
             let menu = Menu::default(app.handle())?;
             let reload = MenuItem::with_id(app, "reload", "重新加载", true, Some("CmdOrCtrl+R"))?;
             let home = MenuItem::with_id(app, "home", "返回云游戏首页", true, None::<&str>)?;

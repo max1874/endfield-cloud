@@ -33,6 +33,13 @@ unchanged into `maps/`, each listed with its source in `maps/README.md`.
 
 ## Runtime
 
+- Releases: bump `version` in `Cargo.toml` and `tauri.conf.json`, run
+  `scripts/build-app.sh --release`, tag `vX.Y.Z` on `main` and attach
+  `dist/endfield-cloud-vX.Y.Z-macos-arm64.zip` to the GitHub release. The app is
+  named 云终末地 / Endfield Cloud; the bundle id, binary name and data directory
+  keep `prototype` so existing logins and evidence stay in place.
+- App icon: `scripts/make-icon.sh` rebuilds `icons/icon.png` and `icons/icon.icns`
+  from `icons/appstore-artwork.png`.
 - Build and run: `scripts/build-app.sh`, then `scripts/run-app.sh` (the runtime
   log goes to `artifacts/runtime-*.log`; page errors and WebRTC state appear there
   prefixed with `page`).
