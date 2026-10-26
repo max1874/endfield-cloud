@@ -39,7 +39,7 @@ fn bundle_engine() {
         script.push_str(&format!("  {name:?}: \"data:image/png;base64,{}\",\n", base64(&bytes)));
     }
     script.push_str("};\n");
-    let mut sources: Vec<PathBuf> = ["native/engine/core.js", "native/engine/screens.js", "native/engine/session.js", "native/engine/runner.js"]
+    let mut sources: Vec<PathBuf> = ["native/engine/core.js", "native/engine/screens.js", "native/engine/session.js", "native/engine/runner.js", "native/engine/field_navigation.js", "native/engine/field_collection.js"]
         .iter()
         .map(PathBuf::from)
         .collect();

@@ -89,6 +89,7 @@ const ENGINE_MENU_TASKS: &[(&str, &str)] = &[
     ("prod_manual", "运行：简制手册 · 领取"),
     ("outpost_trading", "运行：据点交易"),
     ("stockpile", "运行：弹性物资囤货"),
+    ("collect_wuling_zhiqige", "运行：武陵采集 · 置器阁芽针"),
 ];
 
 // The automation engine (native/engine/), bundled with its templates by build.rs.
@@ -247,6 +248,8 @@ fn main() {
                         "window.__engine.resume()".to_string()
                     } else {
                         match id.strip_prefix("engine-run:") {
+                            Some(task) if task.starts_with("collect_") =>
+                                format!("window.__engine.run([{task:?}], {{ session: 'auto' }})"),
                             Some(task) => format!("window.__engine.run([{task:?}])"),
                             None => "window.__engine.stop('stopped_by_menu')".to_string(),
                         }

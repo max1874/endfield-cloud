@@ -7,6 +7,7 @@ derive from the game's own data.
 
 | File | MaaEnd path | Area |
 |------|-------------|------|
+| `wuling_base.png` | `MapLocator/Wuling/Base.png` | 武陵, ground level |
 | `omv_base01.png` | `MapLocator/OMVBase/OMVBase01.png` | 帝江号, the deck with 舰桥 and 中央环厅 |
 
 Max decided on 2026-10-23 that this project is for personal use only and may use

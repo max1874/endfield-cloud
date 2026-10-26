@@ -8,8 +8,9 @@ file first and updates the ledger at the bottom when a status changes.
 One click in the app runs the selected daily/weekly chores of 云·终末地 unattended,
 with the window covered, and leaves for each task a record that proves the game
 changed (see "Essential variable" in `AGENTS.md`). Scope is every in-game task
-MaaEnd automates **except map/field collection and anything that needs walking or
-driving in the open world** (listed under Excluded). MaaEnd stays reference only.
+MaaEnd automates, with the exceptions listed under Excluded. Automatic field
+collection and its navigation were added on 2026-10-23, prioritizing 武陵. MaaEnd
+stays reference only.
 
 ## Done means
 
@@ -71,9 +72,20 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 - 选剑演武 [TrialOfSwordmancy]
 - 基质刷取 [AutoEssence]
 
+## Field collection — added 2026-10-23
+
+Max requested automatic field collection, prioritizing 武陵. This extends the
+original scope to AutoCollect and the walking/navigation it needs. Implement
+selectable collection routes, teleport to their start, follow them with observed
+position feedback, interact only with recognized resource prompts, and record
+actual item receipts and inventory changes. Missing resources, unreadable position,
+blocked movement and interrupted runs must not become a successful collection.
+The initial 武陵 route establishes the mechanism; it does not by itself complete
+the broader collection goal.
+
 ## Excluded
 
-- Map/field collection and open-world movement: AutoCollect, EnvironmentMonitoring,
+- Other map/open-world tasks: EnvironmentMonitoring,
   SeizeDeliveryJobs, DeliveryJobs auto-delivery mode, AutoSell (walks on a friend's
   ship), ZiplineImport, SharedZiplineDelete.
 - Other platforms' launch/close: AndroidOpenGame, CloseGame, CloseGamePC,
@@ -127,7 +139,7 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 | 每日全部 menu (E5, `DAILY_TASKS` in `src/main.rs`) | partial | 2026-10-23 menu click on the bundled build: `20261023-105117-x9sk` started the session, ran all 10 tasks in order and exited the session; `20261023-110356-3a3v` stopped at 据点交易 on real input and left the session running. Not yet a run where every task ends passed or nothing_to_do `20261023-112312-n9vn` (input no longer pauses; only 接管 does) ran all 10: 9 passed or nothing_to_do, stockpile failed on an unread price; 接管 → 继续 via the menu verified in `20261023-111742-vzyf` (screenshots `artifacts/acceptance-20261023-takeover/`); clicking the bar with a real mouse not yet seen |
 | Spike 4 template/number OCR robustness | not started | |
 | Engine core (JS in isolated world, OCR bridge, evidence, runner) | in-app selftest passed | run `20261021-164204-66t1` (title → world → menu → settings → world), screen locked, session already streaming |
-| E1 session start/exit | done | bundled build run `20261022-095446-2ntl` passed; 3 consecutive cold starts (cooldown retry included) → title → 月卡 notice/world → selftest passed → session exited: runs `20261022-093105-tn6j`, `-093208-aqib`, `-093330-ly2e`; failure path seen (`nav_world_timeout`, `session_start_timeout`). 2026-10-22 16:20: the game login failed (page notice 登录失败(-1) over the title), then the page logged out to its 验证码 form; `session_logged_out` now blocks at once (seen live), `session_login_failed` is unverified |
+| E1 session start/exit | done | 2026-10-26: real idle disconnect (由于长时间未使用，已断开连接) recovered from `idle_ended` to streaming/world in 68 s; bundled collection subsequently started/exited its own session.  bundled build run `20261022-095446-2ntl` passed; 3 consecutive cold starts (cooldown retry included) → title → 月卡 notice/world → selftest passed → session exited: runs `20261022-093105-tn6j`, `-093208-aqib`, `-093330-ly2e`; failure path seen (`nav_world_timeout`, `session_start_timeout`). 2026-10-22 16:20: the game login failed (page notice 登录失败(-1) over the title), then the page logged out to its 验证码 form; `session_logged_out` now blocks at once (seen live), `session_login_failed` is unverified |
 | E1 unattended with displays asleep | out of scope | Max (2026-10-22): runs happen with the display on; neither keeping the app open nor waking the display is wanted |
 | E2 input layer | partial | key, click with deltas, Alt+click, drag implemented; Alt+click and drag not yet exercised through the engine |
 | E3 recognition | partial | world/menu/settings/title/loading/boot/总控中枢/获得奖励 fingerprints; ESC-label template; item counts via `E.readNumber` (digits mode) verified on two reward frames; NCC matching untested on varied frames |
@@ -146,4 +158,5 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 | 赠送干员礼物 (`operator_gifts`) | partial | hot-loaded runs 2026-10-23: `20261023-101436-jek6` gave 诀 3 黑森林浆果酱 (9 → 6, 信赖度 107% → 112%), then failed to reach the next operator; `20261023-101708-oo81` passed: 噗切娜 ← 3 塞梦珂披巾 (79 → 76, 108% → 108%, the bar moved inside the percent), 赛希 ← 3 星门锁 (145 → 142, 110% → 114%); 提弗洛斯 not reached in 3 rounds because a talk leaves the camera looking down, fixed by levelling the camera before each approach (hot-loaded check: 提弗洛斯 reached and talk opened at 110%, nothing given). Walking uses the minimap located on MaaEnd's floor plan (`maps/`); kiosk reached from the anchor and from the hall. Open: the bundled build has not run the task (today's 3 are done; next run after the 04:00 reset); a second run on the same day would gift up to 3 more operators |
 | 模拟空间奖励 | nothing to claim | 行动手册 → 模拟: 四号谷地 26/26, 武陵 23/23 complete (2026-10-22); revisit when a game update adds simulations |
 | 资源回收站 | deferred | low priority (Max) |
+| Field collection / 武陵 | first route verified; broader collection incomplete | `collect_wuling_zhiqige` bundled menu run `20261026-143802-vhm0`: home → automatic session start → 应龙关/置器阁 teleport → minimap-guided approach → 芽针 receipt ×1, carried 1 → 2 → automatic session exit. Earlier hot-loaded run `20261026-132429-2tx1` verified absent stack 0 → 1; immediate repeat ended `blocked: collection_resource_missing` with no change. Screens and records are preserved at `artifacts/acceptance-20261026-collection/` in the primary checkout. No crash report observed. Remaining: additional 武陵 routes/resources, route selection/batching, longer-path obstacle and interruption acceptance; do not treat this one-plant route as the full collection goal. |
 | Other Phase 1–4 tasks | not started | |
