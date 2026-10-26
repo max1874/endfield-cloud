@@ -62,6 +62,7 @@ fn main() {
         let sources = [
             "native/pointer_lock.m",
             "native/background.m",
+            "native/audio.m",
             "native/webrtc.m",
             "native/viewport.m",
             "native/engine.m",

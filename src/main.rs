@@ -1,6 +1,6 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use tauri::{
-    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
     webview::{NewWindowFeatures, NewWindowResponse, PageLoadEvent},
     AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
@@ -13,6 +13,7 @@ extern "C" {
     fn endfield_lock_viewport(webview: *mut std::ffi::c_void);
     fn endfield_install_engine(webview: *mut std::ffi::c_void, source: *const std::ffi::c_char);
     fn endfield_engine_command(webview: *mut std::ffi::c_void, command: *const std::ffi::c_char);
+    fn endfield_set_muted(webview: *mut std::ffi::c_void, muted: bool) -> std::ffi::c_ulong;
     #[cfg(debug_assertions)]
     fn endfield_dev_eval(
         webview: *mut std::ffi::c_void,
@@ -90,6 +91,9 @@ const ENGINE_MENU_TASKS: &[(&str, &str)] = &[
     ("outpost_trading", "运行：据点交易"),
     ("stockpile", "运行：弹性物资囤货"),
 ];
+
+// 游戏 → 静音: the game page's audio, muted for the whole app run (native/audio.m).
+static MUTED: AtomicBool = AtomicBool::new(false);
 
 // The automation engine (native/engine/), bundled with its templates by build.rs.
 #[cfg(target_os = "macos")]
@@ -191,6 +195,8 @@ fn main() {
                 true,
                 Some("Ctrl+Cmd+F"),
             )?;
+            let mute = CheckMenuItem::with_id(app, "mute", "静音", true, false, Some("CmdOrCtrl+Shift+M"))?;
+            app.manage(mute.clone());
             let sensitivity_1 = MenuItem::with_id(app, "sensitivity-1", "鼠标灵敏度 1×", true, None::<&str>)?;
             let sensitivity_2 = MenuItem::with_id(app, "sensitivity-2", "鼠标灵敏度 2×", true, None::<&str>)?;
             let sensitivity_4 = MenuItem::with_id(app, "sensitivity-4", "鼠标灵敏度 4×", true, None::<&str>)?;
@@ -198,7 +204,7 @@ fn main() {
             let sensitivity_16 = MenuItem::with_id(app, "sensitivity-16", "鼠标灵敏度 16×", true, None::<&str>)?;
             menu.append(&Submenu::with_items(
                 app, "游戏", true,
-                &[&reload, &home, &fullscreen, &sensitivity_1, &sensitivity_2, &sensitivity_4, &sensitivity_8, &sensitivity_16],
+                &[&reload, &home, &fullscreen, &mute, &sensitivity_1, &sensitivity_2, &sensitivity_4, &sensitivity_8, &sensitivity_16],
             )?)?;
             let automation = Submenu::new(app, "自动化", true)?;
             automation.append(&MenuItem::with_id(app, "engine-run-daily", "运行：每日全部", true, None::<&str>)?)?;
@@ -234,6 +240,19 @@ fn main() {
                     } else {
                         Ok(())
                     }
+                }
+                #[cfg(target_os = "macos")]
+                "mute" => {
+                    // Our own flag drives the check mark, whether the click or the
+                    // shortcut toggled it.
+                    let muted = !MUTED.fetch_xor(true, Ordering::Relaxed);
+                    let item = app.state::<CheckMenuItem<tauri::Wry>>();
+                    item.set_checked(muted).and_then(|()| match windows.get("game") {
+                        Some(game) => game.with_webview(move |webview| unsafe {
+                            endfield_set_muted(webview.inner(), muted);
+                        }),
+                        None => Ok(()),
+                    })
                 }
                 #[cfg(target_os = "macos")]
                 id if matches!(id, "engine-stop" | "engine-pause" | "engine-resume" | "engine-run-daily") || id.starts_with("engine-run:") => {

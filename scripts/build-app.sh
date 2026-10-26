@@ -20,7 +20,8 @@ if [ "${1:-}" = "--release" ]; then
 fi
 version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)"
 # Build the actual application; no check, lint, or test suite is run here.
-cargo build "${cargo_flags[@]}" --jobs 4
+# The guard keeps an empty array from failing `set -u` in macOS's bash 3.2.
+cargo build ${cargo_flags[@]+"${cargo_flags[@]}"} --jobs 4
 app_dir="$project_dir/dist/Endfield Cloud.app"
 rm -rf "$project_dir/dist/Endfield Cloud Prototype.app"
 mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources"
