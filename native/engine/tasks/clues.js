@@ -169,8 +169,7 @@
     title: '会客室 · 线索赠予与交流',
     start: 'world',
     async run(t) {
-      await E.key('KeyI');
-      const nexus = await E.waitFor('control_nexus', { timeout: 10000 });
+      const nexus = await E.openControlNexus(t);
       const room = await E.findText(nexus, /^会客室$/, ROOM_ON_MAP);
       if (!room) E.fail('nexus_without_会客室');
       await E.click(...E.center(room));

@@ -21,7 +21,6 @@
   const OTHER_BATCH = 30;
   const PROMPTS = [0.6, 0.57, 0.3, 0.2];
   const KIOSK = /联络台/;
-  const WHOLE_MAP = [0.1, 0.08, 0.8, 0.84];
   // 干员联络: a 6-column card grid; each card has its 信赖度 under the portrait and a
   // yellow gift icon in its top-left corner when the operator has a gift for us.
   const CARD_X = [888, 1023, 1159, 1295, 1431, 1567];
@@ -34,11 +33,6 @@
   const GIFT_SORT_BOX = px(350, 993);
   const GIFT_CLOSE = px(1848, 42);
 
-  // The 帝江号 map shows 总控中枢等级 on top, a region map 地区建设等级 at the bottom
-  // left or 地区总览 at the bottom right. The map title sits on a busy background and
-  // OCR often misses it.
-  const SHIP_MAP = [0.4, 0.02, 0.2, 0.06];
-  E.screen('map', look => look.has(/总控中枢等级/, SHIP_MAP) || look.has(/地区建设等级/, [0, 0.89, 0.12, 0.05]) || look.has('地区总览', [0.8, 0.88, 0.18, 0.08]), 71);
   E.screen('contact', look => look.has(/[干千于]员联络$/, [0.12, 0.16, 0.12, 0.05]) && look.has(/确认联络|未选择/, [0.7, 0.78, 0.2, 0.06]), 76);
   E.screen('operator_talk', look => look.has(/赠送礼物|收下礼物/, [0.75, 0.55, 0.22, 0.15]) && look.has(/离开/, [0.75, 0.65, 0.22, 0.12]), 74);
   // A spoken line: the speaker's name and the line at the bottom, waiting for a click.
@@ -49,60 +43,7 @@
   E.screen('gift', look => look.has(/赠送礼物$/, [0, 0, 0.15, 0.06]) || look.has('今日赠礼可提升的信赖', [0.78, 0.35, 0.2, 0.05]) || look.has('赠礼记录', [0.02, 0.8, 0.08, 0.05]), 77);
 
   const kioskPrompt = async look => await E.findText(look, KIOSK, PROMPTS);
-  const percent = text => Number(text.match(/(\d{2,3})%/)[1]);
-
-  async function openMap() {
-    await E.key('KeyM');
-    let map = await E.waitFor('map', { timeout: 10000 });
-    if (!await E.findText(map, /总控中枢等级/, SHIP_MAP)) {
-      // Another region's map: its corner lists the 帝江号.
-      const ship = await E.findText(map, /帝江号$/, [0.8, 0.1, 0.2, 0.06]);
-      if (!ship) E.fail('map_without_帝江号');
-      await E.click(...E.center(ship));
-      await E.sleep(1500);
-      map = await E.waitFor('map', { timeout: 10000 });
-      if (!await E.findText(map, /总控中枢等级/, SHIP_MAP)) E.fail('map_not_switched_to_帝江号');
-    }
-    return map;
-  }
-
-  async function closeMap() {
-    await E.key('Escape');
-    return E.waitFor('world', { timeout: 10000 });
-  }
-
-  // Map → the kiosk's icon → 前往传送 selects the nearest 协议传送点 → 传送. The
-  // teleport also resets the camera behind the character, facing east. Near the
-  // kiosk the player's arrow covers part of the icon; it still takes the click.
-  async function teleport(t) {
-    const map = await openMap();
-    let icon = await E.match(map.frame, 'map_contact_station', WHOLE_MAP, { step: 2 });
-    if (icon.score < 0.7) icon = await E.match(map.frame, 'map_contact_station', [0.44, 0.38, 0.12, 0.24]);
-    if (icon.score < 0.25) {
-      await t.save(map.frame, 'map-without-kiosk');
-      E.fail(`kiosk_icon_not_found_${icon.score.toFixed(2)}`);
-    }
-    await E.click(icon.x + icon.w / 2, icon.y + icon.h / 2);
-    await E.sleep(1500);
-    let look = await E.look();
-    const go = await E.findText(look, '前往传送', [0.7, 0.85, 0.15, 0.1]);
-    if (!go) {
-      await t.save(look.frame, 'kiosk-panel');
-      // A click beside the icon opens a new custom marker instead: cancel it.
-      const cancel = await E.findText(look, '取消', [0.75, 0.88, 0.12, 0.08]);
-      if (cancel) { await E.click(...E.center(cancel)); await E.sleep(800); }
-      E.fail('kiosk_panel_without_前往传送');
-    }
-    await E.click(...E.center(go));
-    await E.sleep(1500);
-    look = await E.look();
-    // The button's icon can read as trailing characters.
-    const jump = await E.findText(look, /^传送/, [0.85, 0.85, 0.15, 0.1]);
-    if (!jump) { await t.save(look.frame, 'anchor-panel'); E.fail('anchor_panel_without_传送'); }
-    await E.click(...E.center(jump));
-    await E.waitFor('world', { timeout: 60000 });
-    await E.sleep(1000);
-  }
+  const percent = text => Number(text.match(/(\d{1,3})%/)[1]);
 
   // ---- where the player is -------------------------------------------------------
   // The minimap is north up, centered on the player, and half transparent over the
@@ -323,7 +264,7 @@
   async function candidates(look) {
     const cards = [];
     for (const row of CARD_ROWS) for (const x of CARD_X) {
-      const value = await E.findText(look, /\d{2,3}%/, [x / 1920 - 0.045, row.trust - 0.016, 0.07, 0.032]);
+      const value = await E.findText(look, /\d{1,3}%/, [x / 1920 - 0.045, row.trust - 0.016, 0.07, 0.032]);
       const [r, g, b] = E.color(look.frame, [(x - 50) / 1920, (row.icon - 8) / 1080, 8 / 1920, 14 / 1080]);
       const gift = r > 170 && g > 150 && b < 110;
       cards.push({ x, y: row.y, trust: value ? percent(value.text) : null, gift });
@@ -393,8 +334,8 @@
     E.fail(`talk_with_${name}_not_opened`);
   }
 
-  const trustOf = look => {
-    const value = E.find(look.texts, /\d{2,3}%/, [0.8, 0.32, 0.09, 0.04]);
+  const trustOf = async look => {
+    const value = await E.findText(look, /\d{1,3}%/, [0.8, 0.32, 0.09, 0.04]);
     return value ? percent(value.text) : null;
   };
 
@@ -478,7 +419,7 @@
   E.nav.dismiss.operator_talk = leaveTalk;
 
   async function giftOperator(t, name, index, talkLook) {
-    const before = trustOf(talkLook);
+    const before = await trustOf(talkLook);
     const open = await E.findText(talkLook, /赠送礼物/, [0.75, 0.55, 0.22, 0.15]);
     await E.click(...E.center(open));
     const screen = await E.waitFor('gift', { timeout: 8000 });
@@ -510,7 +451,7 @@
     // The thank-you line, then the choices again.
     await E.click(0.5, 0.6);
     talkLook = await E.waitFor('operator_talk', { timeout: 8000 });
-    const after = trustOf(talkLook);
+    const after = await trustOf(talkLook);
     const frame = await t.save(talkLook.frame, `op${index}-after`);
     t.change({ what: `${name} ← ${batch.n} ${batch.gift}${batch.liked.length ? ` (likes ${batch.liked.join('、')})` : ''}`,
       gift: { before: batch.count, after: batch.count - batch.n }, trust: { before, after }, frames: [shown, frame] });
@@ -539,7 +480,7 @@
           // Next to the kiosk already (its prompt needs a move to show), no teleport:
           // on the map the player's arrow would cover the kiosk's icon.
           const at = await locate();
-          if (at.score < 0.5 || Math.hypot(at.x - KIOSK_AT[0], at.y - KIOSK_AT[1]) > 25) await teleport(t);
+          if (at.score < 0.5 || Math.hypot(at.x - KIOSK_AT[0], at.y - KIOSK_AT[1]) > 25) await E.teleportToContactKiosk(t);
           await walkToKiosk(t);
         }
         const contact = await openContact();
@@ -577,11 +518,14 @@
           if (!entry) { t.note(`round ${round}: ${card.name} not reached`); continue; }
           const index = talks++;
           const talkLook = await talk(card.name, entry);
-          // The talk shows the 信赖度; it must be the summoned card's.
-          const shown = trustOf(talkLook);
-          if (shown !== card.trust) {
+          // A card's trust icon can OCR as a leading digit (0% → 10%). Identify
+          // the speaker by the name on the trust label, not by that percentage.
+          const label = await E.findText(talkLook, /的信赖度$/, [0.76, 0.38, 0.2, 0.06]);
+          const speaker = label?.text.replace(/的信赖度$/, '') || null;
+          const shown = await trustOf(talkLook);
+          if (!speaker || !sameName(speaker, card.name)) {
             await t.save(talkLook.frame, `op${index}-other-operator`);
-            t.note(`${card.name}: talk shows ${shown}%, card ${card.trust}%; nothing given`);
+            t.note(`${card.name}: talk name ${speaker ?? 'unread'}, shows ${shown}%, card ${card.trust}%; nothing given`);
             await leaveTalk(talkLook);
             continue;
           }

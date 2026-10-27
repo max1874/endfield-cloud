@@ -31,8 +31,8 @@
     return m ? { left: Number(m[1]), total: Number(m[2]) } : null;
   };
 
-  const scroll = async () => {
-    await E.drag([LIST_MARGIN, 0.85], [LIST_MARGIN, 0.3], { ms: 900 });
+  const scroll = async (down = true) => {
+    await E.drag([LIST_MARGIN, down ? 0.85 : 0.3], [LIST_MARGIN, down ? 0.3 : 0.85], { ms: 900 });
     await E.park({ at: [0.5, 0.03], settle: 1200 });
     return E.look();
   };
@@ -170,9 +170,16 @@
     const left = quota(after);
     if (!left) E.fail(`${region}_quota_unread_after`);
     if (left.left !== before.left - now.quantity) E.fail(`${region}_quota_${before.left}_minus_${now.quantity}_read_${left.left}`);
-    // Re-open the card for the owned count and the balance.
-    const again = (await readMarket(after) || []).find(c => c.name === pick.name);
-    if (!again) E.fail(`${pick.name}_not_on_screen_after`);
+    // Buying adds the goods to 当前拥有 above 市场. Return to the top using
+    // only the empty margin, then find its name in either section.
+    for (let i = 0; i < 4; i++) {
+      after = await scroll(false);
+      if (await E.findText(after, /^当前拥有$/, [0.05, 0.23, 0.2, 0.7])) break;
+    }
+    await t.save(after.frame, `${tag}-owned-list`);
+    const name = (await E.findAllText(after, /货组$/, [0.05, 0.23, 0.85, 0.74])).find(n => n.text === pick.name);
+    if (!name) E.fail(`${pick.name}_not_on_screen_after`);
+    const again = { name: pick.name, at: [E.center(name)[0], name.y - 0.15] };
     const { look: check, dialog: post } = await openCard(t, tag, again);
     const done = await t.save(check.frame, `${tag}-after`);
     await E.key('Escape');

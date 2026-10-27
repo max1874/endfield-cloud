@@ -29,9 +29,9 @@
   // 行动手册 milestones.
   const REWARD_NAMES = [0.1, 0.55, 0.8, 0.06];
   // Same layout under other titles: 据点交易 (trade result, counts like "110万"),
-  // 购买成功 (物资调度 purchase); the mailbox's 邮箱奖励 comes from MaaEnd's strings
+  // 购买成功 (物资调度 purchase), 奖励 (简制手册); the mailbox's 邮箱奖励 comes from MaaEnd's strings
   // and is not yet seen here. Esc does not close these.
-  E.screen('reward', look => look.has(/获得奖励|邮箱奖励|据点交易|购买成功/, [0.3, 0.09, 0.4, 0.07]), 76);
+  E.screen('reward', look => look.has(/获得奖励|邮箱奖励|据点交易|购买成功|^奖励$/, [0.3, 0.09, 0.4, 0.07]), 76);
   E.reward = {
     async read(look) {
       const items = [];
@@ -66,6 +66,78 @@
   // In the world the top-right key hints are drawn on dark label boxes, so the ESC
   // label matches whatever the scene behind it. Full-screen panels hide it.
   E.screen('world', async look => (await E.match(look.frame, 'hud_esc', [0.945, 0, 0.055, 0.045])).score >= 0.8, 0);
+
+  // ---- ship navigation ----------------------------------------------------------
+  const WHOLE_MAP = [0.1, 0.08, 0.8, 0.84];
+  // The 帝江号 map shows 总控中枢等级 on top, a region map 地区建设等级 at the bottom
+  // left or 地区总览 at the bottom right. The map title sits on a busy background and
+  // OCR often misses it.
+  const SHIP_MAP = [0.4, 0.02, 0.2, 0.06];
+  E.screen('map', look => look.has(/总控中枢等级/, SHIP_MAP) || look.has(/地区建设等级/, [0, 0.89, 0.12, 0.05]) || look.has('地区总览', [0.8, 0.88, 0.18, 0.08]), 71);
+
+  async function openMap() {
+    await E.key('KeyM');
+    let map = await E.waitFor('map', { timeout: 10000 });
+    if (!await E.findText(map, /总控中枢等级/, SHIP_MAP)) {
+      // Another region's map: its corner lists the 帝江号.
+      const ship = await E.findText(map, /帝江号$/, [0.8, 0.1, 0.2, 0.06]);
+      if (!ship) E.fail('map_without_帝江号');
+      await E.click(...E.center(ship));
+      await E.sleep(1500);
+      map = await E.waitFor('map', { timeout: 10000 });
+      if (!await E.findText(map, /总控中枢等级/, SHIP_MAP)) E.fail('map_not_switched_to_帝江号');
+    }
+    return map;
+  }
+
+  // Map → the kiosk's icon → 前往传送 selects the nearest 协议传送点 → 传送. The
+  // teleport also resets the camera behind the character, facing east. Near the
+  // kiosk the player's arrow covers part of the icon; it still takes the click.
+  E.teleportToContactKiosk = async t => {
+    const map = await openMap();
+    let icon = await E.match(map.frame, 'map_contact_station', WHOLE_MAP, { step: 2 });
+    if (icon.score < 0.7) icon = await E.match(map.frame, 'map_contact_station', [0.44, 0.38, 0.12, 0.24]);
+    if (icon.score < 0.25) {
+      await t.save(map.frame, 'map-without-kiosk');
+      E.fail(`kiosk_icon_not_found_${icon.score.toFixed(2)}`);
+    }
+    await E.click(icon.x + icon.w / 2, icon.y + icon.h / 2);
+    await E.sleep(1500);
+    let look = await E.look();
+    const go = await E.findText(look, '前往传送', [0.7, 0.85, 0.15, 0.1]);
+    if (!go) {
+      await t.save(look.frame, 'kiosk-panel');
+      // A click beside the icon opens a new custom marker instead: cancel it.
+      const cancel = await E.findText(look, '取消', [0.75, 0.88, 0.12, 0.08]);
+      if (cancel) { await E.click(...E.center(cancel)); await E.sleep(800); }
+      E.fail('kiosk_panel_without_前往传送');
+    }
+    await E.click(...E.center(go));
+    await E.sleep(1500);
+    look = await E.look();
+    // The button's icon can read as trailing characters.
+    const jump = await E.findText(look, /^传送/, [0.85, 0.85, 0.15, 0.1]);
+    if (!jump) { await t.save(look.frame, 'anchor-panel'); E.fail('anchor_panel_without_传送'); }
+    await E.click(...E.center(jump));
+    await E.waitFor('world', { timeout: 60000 });
+    await E.sleep(1000);
+  };
+
+  // I may be unavailable in some world locations. Retry once from the ship's
+  // contact-kiosk teleport anchor, sharing the same route as operator gifts.
+  E.openControlNexus = async t => {
+    await E.key('KeyI');
+    try {
+      return await E.waitFor('control_nexus', { timeout: 10000 });
+    } catch (error) {
+      if (!(error instanceof E.EngineError) || error.kind !== 'timeout' || error.detail?.look?.screen !== 'world') throw error;
+      const frame = await t.save(error.detail.look.frame, 'nexus-unavailable-here');
+      t.note(`I left the world open (${frame}); teleporting to the contact kiosk before one retry`);
+    }
+    await E.teleportToContactKiosk(t);
+    await E.key('KeyI');
+    return E.waitFor('control_nexus', { timeout: 10000 });
+  };
 
   // ---- 地区建设 -------------------------------------------------------------------
   // Menu → 地区建设 opens the last viewed region; the switch icon left of the region

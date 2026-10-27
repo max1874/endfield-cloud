@@ -18,8 +18,7 @@
     title: '基建 · 总控事项',
     start: 'world',
     async run(t) {
-      await E.key('KeyI');
-      let nexus = await E.waitFor('control_nexus', { timeout: 10000 });
+      let nexus = await E.openControlNexus(t);
       const before = await t.save(nexus.frame, 'nexus-before');
       const pending = [];
       for (const entry of ENTRIES) if (await E.findText(nexus, entry, PENDING)) pending.push(entry);
