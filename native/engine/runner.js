@@ -177,8 +177,13 @@
         } catch (error) {
           t.verdict = error instanceof E.EngineError ? error.kind : 'failed';
           t.summary = error.message || String(error);
+          // A browser error says nothing about where it came from (credit_shop's
+          // "The object is in an invalid state.", run 20261027-115141-e6ci); keep the stack.
+          if (!(error instanceof E.EngineError)) t.note(`${error?.name}: ${error?.stack}`);
           const look = error?.detail?.look;
-          try { await t.save(look?.frame || await E.grab(), `end-${t.verdict}`); } catch {}
+          try { await t.save(look?.frame || await E.grab(), `end-${t.verdict}`); } catch (saveError) {
+            t.note(`end frame not saved: ${saveError?.name}: ${saveError?.message} ${saveError?.stack}`);
+          }
           if (look) t.note(`last_screen=${look.screen} texts=${look.texts.slice(0, 12).map(x => x.text).join('|')}`);
         }
         const result = await t.write({ seconds: Math.round((Date.now() - started) / 1000) });
@@ -186,7 +191,7 @@
         E.log(`task=${id} verdict=${t.verdict} ${t.summary}`);
         if (t.verdict === 'stopped') { ended = true; break; }
         try { await guarded(() => E.nav.to('world', null), title); } catch (error) {
-          E.log(`recover_failed ${error.message}`);
+          E.log(`recover_failed ${error.message} ${error.stack}`);
           if (error.kind === 'stopped') ended = true;
           break;
         }
