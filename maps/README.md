@@ -9,10 +9,9 @@ derive from the game's own data.
 |------|-------------|------|
 | `omv_base01.png` | `MapLocator/OMVBase/OMVBase01.png` | 帝江号, the deck with 舰桥 and 中央环厅 |
 
-Max decided on 2026-10-23 that this project is for personal use only and may use
-MaaEnd's floor plans. If the project is ever distributed, these files bring the
-AGPL with them: replace them with our own captures first or license the project
-accordingly.
+Max decided on 2026-10-23 that the project may use MaaEnd's floor plans; since
+2026-10-27 the repository is public and licensed under AGPL-3.0 (`LICENSE`), the
+same license as these files.
 
 The engine bundles every PNG here with the templates (`build.rs`); a task loads one
 by its file stem from `window.__engineTemplates`.

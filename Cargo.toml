@@ -3,6 +3,7 @@ name = "endfield-cloud-prototype"
 version = "0.2.3"
 edition = "2021"
 publish = false
+license = "AGPL-3.0-only"
 
 [build-dependencies]
 cc = "1"
