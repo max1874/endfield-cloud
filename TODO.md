@@ -7,6 +7,36 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 
 ## Follow-ups
 
+### Tester rerun on macOS 27 — added 2026-10-27
+
+- **Trigger:** Max authorizes sending v0.2.3 (or later) to the macOS 27 tester, whose run
+  `20261026-210309-2ptr` (macOS 27.0.1; copy in `artifacts/tester-macos27-20261026/`)
+  failed 9 of 10 tasks.
+- **Check:** his next 每日全部 run directory: buttons read through the crop
+  fallback (确定, 确认, 传送, 一键领取, 市场), the mailbox recognized, an outpost
+  with 选择货品 goes through goods selection and trades, 日常 reads 活跃度 and the
+  milestones in his 悠游便签 layout. None of these states exist on Max's account.
+- **Done when:** his run ends with every task passed or nothing_to_do, or each
+  remaining failure has its own item.
+
+### Credit shop: the day's last refresh — added 2026-10-27
+
+- **Trigger:** a 信用点购物 run that makes the day's last refresh (剩余次数 1/4 before).
+- **Check:** after it the bar reads 今日刷新次数已用尽; `credit_shop` must record the
+  refresh (refreshes 1 → 0) and go on buying, not fail `refreshes_1_after_…` as in
+  run `20261027-102127-zbm2` (fixed in `47f791f`; only the "already used up at the
+  start" reading was seen live, run `20261027-111711-s3cp`).
+- **Done when:** a run records a 立即刷新 change with refreshes after 0.
+
+### 总控中枢 not opening on I — added 2026-10-27
+
+- **Trigger:** `dijiang_collect` or `clue_exchange` ends
+  `expected_control_nexus_saw_world` again (Max's runs 2026-10-26 12:26 and
+  2026-10-27 09:17, the tester's run; three later runs on 2026-10-27 opened it).
+- **Check:** the end frame and the screen before I was pressed; both failing frames
+  show the player in a red 激发 aura with an F 激发 prompt.
+- **Done when:** the cause is known and the task handles it.
+
 ### Unverified paths after the next reset — added 2026-10-23
 
 - **Trigger:** the next daily reset (04:00 server time) after 2026-10-23, with Max
