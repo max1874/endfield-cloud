@@ -90,6 +90,11 @@ unchanged into `maps/`, each listed with its source in `maps/README.md`.
   that starts with `//world:engine` runs in the engine world, which allows
   hot-loading a changed engine file before rebuilding.
 - Templates are cropped from our own 1920×1080 frames, never from MaaEnd.
+- Find a label that is clicked, or whose absence fails a task or ends it as
+  nothing_to_do, with `await E.findText(look, pattern, roi)` (or `findAllText`),
+  not `E.find(look.texts, …)`: full-frame OCR misses labels in pill buttons that a
+  crop of the roi reads (macOS 27 tester run `20261026-210309-2ptr` reported a
+  claimable 简制手册 as nothing_to_do). Screen fingerprints stay full-frame.
 - Unattended runs: `window.__engine.run(ids, { session: true })` starts the cloud
   session, runs the tasks and exits the session.
 

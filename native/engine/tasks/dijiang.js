@@ -21,15 +21,16 @@
       await E.key('KeyI');
       let nexus = await E.waitFor('control_nexus', { timeout: 10000 });
       const before = await t.save(nexus.frame, 'nexus-before');
-      const pending = ENTRIES.filter(entry => nexus.has(entry, PENDING));
+      const pending = [];
+      for (const entry of ENTRIES) if (await E.findText(nexus, entry, PENDING)) pending.push(entry);
       if (!pending.length) return t.skip('总控事项 has no 产物 or 线索 to collect');
 
       const MAX_PRESSES = 6;
       let presses = 0;
-      for (const entry of pending) for (let n = 0; nexus.has(entry, PENDING); n++) {
+      for (const entry of pending) for (let n = 0; await E.findText(nexus, entry, PENDING); n++) {
         if (n === MAX_PRESSES) E.fail(`${entry}_still_pending_after_${n}_collects`);
         presses++;
-        const button = E.find(nexus.texts, entry, PENDING);
+        const button = await E.findText(nexus, entry, PENDING);
         await E.click(...E.center(button));
         const reward = await E.waitFor('reward', { timeout: 6000 }).catch(error => { if (error.kind === 'stopped') throw error; return null; });
         if (!reward) {
@@ -46,7 +47,7 @@
         await E.reward.confirm();
         nexus = await E.waitFor('control_nexus', { timeout: 10000 });
         const after = await t.save(nexus.frame, `${key}-after`);
-        const left = nexus.has(entry, PENDING);
+        const left = !!await E.findText(nexus, entry, PENDING);
         t.change({ what: entry, before: 'pending', after: left ? 'still pending' : 'collected', banner, items, frames: [before, shown, after] });
         if (items.some(item => item.count === null)) t.note(`${entry}: some counts unread`);
       }

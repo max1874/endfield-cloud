@@ -48,20 +48,20 @@
   // OCR misses either anchor on some frames.
   E.screen('gift', look => look.has(/赠送礼物$/, [0, 0, 0.15, 0.06]) || look.has('今日赠礼可提升的信赖', [0.78, 0.35, 0.2, 0.05]) || look.has('赠礼记录', [0.02, 0.8, 0.08, 0.05]), 77);
 
-  const kioskPrompt = look => E.find(look.texts, KIOSK, PROMPTS);
+  const kioskPrompt = async look => await E.findText(look, KIOSK, PROMPTS);
   const percent = text => Number(text.match(/(\d{2,3})%/)[1]);
 
   async function openMap() {
     await E.key('KeyM');
     let map = await E.waitFor('map', { timeout: 10000 });
-    if (!E.find(map.texts, /总控中枢等级/, SHIP_MAP)) {
+    if (!await E.findText(map, /总控中枢等级/, SHIP_MAP)) {
       // Another region's map: its corner lists the 帝江号.
-      const ship = E.find(map.texts, /帝江号$/, [0.8, 0.1, 0.2, 0.06]);
+      const ship = await E.findText(map, /帝江号$/, [0.8, 0.1, 0.2, 0.06]);
       if (!ship) E.fail('map_without_帝江号');
       await E.click(...E.center(ship));
       await E.sleep(1500);
       map = await E.waitFor('map', { timeout: 10000 });
-      if (!E.find(map.texts, /总控中枢等级/, SHIP_MAP)) E.fail('map_not_switched_to_帝江号');
+      if (!await E.findText(map, /总控中枢等级/, SHIP_MAP)) E.fail('map_not_switched_to_帝江号');
     }
     return map;
   }
@@ -85,11 +85,11 @@
     await E.click(icon.x + icon.w / 2, icon.y + icon.h / 2);
     await E.sleep(1500);
     let look = await E.look();
-    const go = E.find(look.texts, '前往传送', [0.7, 0.85, 0.15, 0.1]);
+    const go = await E.findText(look, '前往传送', [0.7, 0.85, 0.15, 0.1]);
     if (!go) {
       await t.save(look.frame, 'kiosk-panel');
       // A click beside the icon opens a new custom marker instead: cancel it.
-      const cancel = E.find(look.texts, '取消', [0.75, 0.88, 0.12, 0.08]);
+      const cancel = await E.findText(look, '取消', [0.75, 0.88, 0.12, 0.08]);
       if (cancel) { await E.click(...E.center(cancel)); await E.sleep(800); }
       E.fail('kiosk_panel_without_前往传送');
     }
@@ -97,7 +97,7 @@
     await E.sleep(1500);
     look = await E.look();
     // The button's icon can read as trailing characters.
-    const jump = E.find(look.texts, /^传送/, [0.85, 0.85, 0.15, 0.1]);
+    const jump = await E.findText(look, /^传送/, [0.85, 0.85, 0.15, 0.1]);
     if (!jump) { await t.save(look.frame, 'anchor-panel'); E.fail('anchor_panel_without_传送'); }
     await E.click(...E.center(jump));
     await E.waitFor('world', { timeout: 60000 });
@@ -254,7 +254,7 @@
   const ROUTE = [[157, 194], [183, 190], [183, 179]];
   const KIOSK_AT = [183, 172];
   async function walkToKiosk(t) {
-    const prompt = async () => !!kioskPrompt(await E.look());
+    const prompt = async () => !!await kioskPrompt(await E.look());
     if (await prompt()) return;
     await ensureRunning();
     let at = await locate();
@@ -289,12 +289,12 @@
     await E.click(...SORT_BOX);
     await E.sleep(1000);
     let menu = await E.look();
-    const trust = E.find(menu.texts, '信赖度', [0.6, 0.55, 0.12, 0.2]);
+    const trust = await E.findText(menu, '信赖度', [0.6, 0.55, 0.12, 0.2]);
     if (!trust) E.fail('contact_sort_without_信赖度');
     await E.click(...E.center(trust));
     await E.sleep(1000);
     menu = await E.look();
-    if (!E.find(menu.texts, /升序/, [0.73, 0.7, 0.08, 0.04])) {
+    if (!await E.findText(menu, /升序/, [0.73, 0.7, 0.08, 0.04])) {
       await E.click(...ORDER_TOGGLE);
       await E.sleep(1000);
     }
@@ -309,7 +309,7 @@
     await E.sleep(1200);
     const look = await E.look();
     // The popup opens beside the card, left of the grid's first column.
-    const mood = E.find(look.texts, /心情/, [0.05, 0.2, 0.75, 0.6]);
+    const mood = await E.findText(look, /心情/, [0.05, 0.2, 0.75, 0.6]);
     const name = mood && look.texts.filter(t => Math.abs(t.y - mood.y) < 0.015 && t.x < mood.x && NAME.test(t.text))
       .sort((a, b) => b.x - a.x)[0];
     await E.click(0.15, 0.75);
@@ -320,10 +320,10 @@
 
   // Cards in order (lowest 信赖度 first after the gift-icon ones), without the gift-icon
   // ones and the ones at 200%.
-  function candidates(look) {
+  async function candidates(look) {
     const cards = [];
     for (const row of CARD_ROWS) for (const x of CARD_X) {
-      const value = E.find(look.texts, /\d{2,3}%/, [x / 1920 - 0.045, row.trust - 0.016, 0.07, 0.032]);
+      const value = await E.findText(look, /\d{2,3}%/, [x / 1920 - 0.045, row.trust - 0.016, 0.07, 0.032]);
       const [r, g, b] = E.color(look.frame, [(x - 50) / 1920, (row.icon - 8) / 1080, 8 / 1920, 14 / 1080]);
       const gift = r > 170 && g > 150 && b < 110;
       cards.push({ x, y: row.y, trust: value ? percent(value.text) : null, gift });
@@ -357,7 +357,7 @@
   // screen gives its bearing from the camera's heading (about 90° across the view).
   // With no tag in view, try a few bearings in turn.
   const VIEW = 90;
-  const promptFor = (look, name) => E.findAll(look.texts, /\S/, PROMPTS)
+  const promptFor = async (look, name) => (await E.findAllText(look, /\S/, PROMPTS))
     .find(p => !KIOSK.test(p.text) && p.text.length <= name.length + 3 && sameName(p.text, name)) || null;
   async function reachOperator(t, name) {
     // A talk leaves the camera looking down at the player, which puts name tags above
@@ -367,7 +367,7 @@
     let at = await locate(), tries = 0;
     for (let i = 0; i < 14; i++) {
       const look = await E.look();
-      const entry = promptFor(look, name);
+      const entry = await promptFor(look, name);
       if (entry) return entry;
       const tag = tags(look).find(tag => tag.name.length <= name.length + 1 && sameName(tag.name, name));
       const bearing = tag && cameraHeading !== null ? cameraHeading - (tag.cx - 0.5) * VIEW
@@ -404,12 +404,12 @@
     await E.click(...GIFT_SORT_BOX);
     await E.sleep(1000);
     const menu = await E.look();
-    const liked = E.find(menu.texts, '偏好', [0.08, 0.76, 0.08, 0.05]);
+    const liked = await E.findText(menu, '偏好', [0.08, 0.76, 0.08, 0.05]);
     if (!liked) E.fail('gift_sort_without_偏好');
     await E.click(...E.center(liked));
     await E.sleep(1000);
     let look = await E.look();
-    if (!E.find(look.texts, /降序/, [0.26, 0.89, 0.06, 0.04])) {
+    if (!await E.findText(look, /降序/, [0.26, 0.89, 0.06, 0.04])) {
       await E.click(...px(580, 993));
       await E.sleep(1000);
       look = await E.look();
@@ -418,7 +418,7 @@
   }
   // Hobby tags: two-character labels (生活, 自然, 公益, 科技, 益智, ...).
   const HOBBIES = /^[\u4e00-\u9fff]{2}$/;
-  const hobbies = (look, roi) => E.findAll(look.texts, HOBBIES, roi).map(t => t.text);
+  const hobbies = async (look, roi) => (await E.findAllText(look, HOBBIES, roi)).map(t => t.text);
   const tileCounts = async look => {
     const counts = [];
     for (const x of GIFT_X) counts.push({ x, count: await E.readNumber(look.frame, [x / 1920 - 0.03, 0.82, 0.06, 0.035]) || 0 });
@@ -438,18 +438,18 @@
   // One batch: 3 of the best-liked gift in stock, else 30 of the most-stocked gift.
   async function chooseBatch(screen) {
     const look = await sortByPreference();
-    const theirs = hobbies(screen, [0.8, 0.27, 0.13, 0.03]);
+    const theirs = await hobbies(screen, [0.8, 0.27, 0.13, 0.03]);
     const counts = await tileCounts(look);
     const first = counts.find(c => c.count > 0);
     if (first) {
       const probe = await selectTile(first.x, 1);
-      const shared = hobbies(probe.look, [0.23, 0.645, 0.12, 0.035]).filter(tag => theirs.includes(tag));
+      const shared = (await hobbies(probe.look, [0.23, 0.645, 0.12, 0.035])).filter(tag => theirs.includes(tag));
       if (shared.length) {
         const n = Math.min(LIKED_BATCH, first.count);
         const chosen = n > 1 ? await selectTile(first.x, n - 1) : probe;
         return { ...chosen, n, count: first.count, liked: shared };
       }
-      const clear = E.find(probe.look.texts, '清空选择', [0.65, 0.88, 0.12, 0.06]);
+      const clear = await E.findText(probe.look, '清空选择', [0.65, 0.88, 0.12, 0.06]);
       if (!clear) E.fail('gift_without_清空选择');
       await E.click(...E.center(clear));
       await E.sleep(600);
@@ -463,7 +463,7 @@
   // 离开 (or 暂时离开 when the operator offers a gift), then the farewell line.
   async function leaveTalk(talkLook) {
     // The option's icon can read as a leading letter ("G离开").
-    const leave = E.find(talkLook.texts, /^\W?\w?\s?(暂时)?离开$/, [0.75, 0.65, 0.22, 0.12]);
+    const leave = await E.findText(talkLook, /^\W?\w?\s?(暂时)?离开$/, [0.75, 0.65, 0.22, 0.12]);
     if (!leave) E.fail('talk_without_离开');
     await E.click(...E.center(leave));
     for (let i = 0; i < 5; i++) {
@@ -479,10 +479,10 @@
 
   async function giftOperator(t, name, index, talkLook) {
     const before = trustOf(talkLook);
-    const open = E.find(talkLook.texts, /赠送礼物/, [0.75, 0.55, 0.22, 0.15]);
+    const open = await E.findText(talkLook, /赠送礼物/, [0.75, 0.55, 0.22, 0.15]);
     await E.click(...E.center(open));
     const screen = await E.waitFor('gift', { timeout: 8000 });
-    const level = E.find(screen.texts, /^[高中低]$/, [0.93, 0.35, 0.06, 0.05])?.text || null;
+    const level = (await E.findText(screen, /^[高中低]$/, [0.93, 0.35, 0.06, 0.05]))?.text || null;
     await t.save(screen.frame, `op${index}-gift-screen`);
     // Gifted already today when it is no longer 高.
     let stop = level !== '高' ? `今日赠礼可提升的信赖 ${level ?? 'unread'}` : null;
@@ -503,7 +503,7 @@
       return level !== '高' ? 'gifted_today' : 'skipped';
     }
     const shown = await t.save(batch.look.frame, `op${index}-batch`);
-    const confirm = E.find(batch.look.texts, '确认赠送', [0.8, 0.87, 0.15, 0.07]);
+    const confirm = await E.findText(batch.look, '确认赠送', [0.8, 0.87, 0.15, 0.07]);
     if (!confirm) E.fail('batch_without_确认赠送');
     await E.click(...E.center(confirm));
     await E.sleep(2500);
@@ -535,7 +535,7 @@
       const passed = new Set();
       let talks = 0;
       for (let round = 0; round < 3 && done.size < OPERATORS; round++) {
-        if (!kioskPrompt(await E.look())) {
+        if (!await kioskPrompt(await E.look())) {
           // Next to the kiosk already (its prompt needs a move to show), no teleport:
           // on the map the player's arrow would cover the kiosk's icon.
           const at = await locate();
@@ -546,7 +546,7 @@
         if (round === 0) await t.save(contact.frame, 'contact');
         // Lowest 信赖度 first, without gift-icon cards, those at 200%, and those done.
         const cards = [];
-        for (const card of candidates(contact)) {
+        for (const card of await candidates(contact)) {
           if (cards.length >= OPERATORS - done.size) break;
           card.name = await cardName(card);
           if (!done.has(card.name) && !passed.has(card.name)) cards.push(card);
@@ -567,7 +567,7 @@
           if (!(r > 190 && g > 180 && b < 90)) { await t.save(picked.frame, 'selection'); E.fail(`card_${card.name}_not_selected`); }
         }
         await t.save(picked.frame, `round${round}-selection`);
-        const confirm = E.find(picked.texts, '确认联络', [0.7, 0.78, 0.2, 0.06]);
+        const confirm = await E.findText(picked, '确认联络', [0.7, 0.78, 0.2, 0.06]);
         if (!confirm) E.fail('contact_without_确认联络');
         await E.click(...E.center(confirm));
         await E.waitFor('world', { timeout: 10000 });

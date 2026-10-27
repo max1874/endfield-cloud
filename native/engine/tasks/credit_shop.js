@@ -52,14 +52,18 @@
     return text ? Number(text.match(BALANCE)[1]) : null;
   };
 
-  const cards = look => ROWS.flatMap(row => E.findAll(look.texts, /\S{2,}/, row).map(name => {
-    const [cx, cy] = E.center(name);
-    const tag = E.find(look.texts, /^-\d+%$/, [cx, cy - 0.27, 0.07, 0.07]);
-    // A bought card stays in place under a 售罄 overlay.
-    const soldOut = E.find(look.texts, /售罄/, [cx - 0.07, cy - 0.16, 0.14, 0.08]) !== null;
-    return { name: name.text, off: tag ? Number(tag.text.slice(1, -1)) : 0, soldOut, at: [cx, cy - 0.15],
-      key: `${Math.round(cx * 100)}:${Math.round(cy * 100)}` };
-  }));
+  const cards = async look => {
+    const cards = [];
+    for (const row of ROWS) for (const name of await E.findAllText(look, /\S{2,}/, row)) {
+      const [cx, cy] = E.center(name);
+      const tag = await E.findText(look, /^-\d+%$/, [cx, cy - 0.27, 0.07, 0.07]);
+      // A bought card stays in place under a 售罄 overlay.
+      const soldOut = await E.findText(look, /售罄/, [cx - 0.07, cy - 0.16, 0.14, 0.08]) !== null;
+      cards.push({ name: name.text, off: tag ? Number(tag.text.slice(1, -1)) : 0, soldOut, at: [cx, cy - 0.15],
+        key: `${Math.round(cx * 100)}:${Math.round(cy * 100)}` });
+    }
+    return cards;
+  };
   const wanted = card => !card.soldOut && (card.off === OFF || ALWAYS.test(card.name));
 
   // Wait for the shop list (seen twice in a row), confirming any reward on the way.
@@ -85,9 +89,9 @@
     const look = await E.look();
     const before = balance(look);
     if (before === null) E.fail('balance_unread');
-    if (look.has(COLLECTED, COLLECT)) return t.note(`收取信用: nothing pending (信用 ${before})`);
+    if (await E.findText(look, COLLECTED, COLLECT)) return t.note(`收取信用: nothing pending (信用 ${before})`);
     const shown = await t.save(look.frame, 'collect-before');
-    await E.click(...E.center(E.find(look.texts, '收取信用', COLLECT)));
+    await E.click(...E.center(await E.findText(look, '收取信用', COLLECT)));
     const { look: after, receipt } = await backToShop(t, 'collect');
     const now = balance(after);
     const frame = await t.save(after.frame, 'collect-after');
@@ -102,7 +106,7 @@
     await E.click(...card.at);
     await E.park({ at: [0.5, 0.03], settle: 600 });
     const look = await E.waitFor('credit_buy', { timeout: 8000 });
-    const name = E.find(look.texts, /\S/, ITEM_NAME)?.text.replace(/^[^一-鿿]+/, '') || null;
+    const name = (await E.findText(look, /\S/, ITEM_NAME))?.text.replace(/^[^一-鿿]+/, '') || null;
     if (name !== card.name) E.fail(`opened_${name}_not_${card.name}`);
     const tag = E.find(look.texts, /^-\d+%$/, ITEM_OFF);
     if ((tag ? Number(tag.text.slice(1, -1)) : 0) !== card.off) E.fail(`${name}_dialog_discount_${tag?.text}_list_${card.off}`);
@@ -117,7 +121,7 @@
     }
     E.guardSpend(look, { ignore: ALWAYS.test(name) ? ITEM_INFO : [] });
     const ready = await t.save(look.frame, `buy${index}-ready`);
-    const confirm = E.find(look.texts, '确认购买', CONFIRM);
+    const confirm = await E.findText(look, '确认购买', CONFIRM);
     if (!confirm) E.fail('dialog_without_确认购买');
     await E.click(...E.center(confirm));
     const { look: after, receipt } = await backToShop(t, `buy${index}`);
@@ -140,12 +144,12 @@
     if (cost > before) return `refresh costs ${cost} > 信用 ${before}`;
     E.guardSpend(look, { ignore: [CARDS] });
     const shown = await t.save(look.frame, `refresh${index}-before`);
-    await E.click(...E.center(E.find(look.texts, '立即刷新', REFRESH)));
+    await E.click(...E.center(await E.findText(look, '立即刷新', REFRESH)));
     const ask = await E.waitFor('credit_refresh', { timeout: 8000 });
     const asked = Number(E.find(ask.texts, REFRESH_ASK).text.match(REFRESH_ASK)[1]);
     if (asked !== cost) E.fail(`refresh_asks_${asked}_button_${cost}`);
     E.guardSpend(ask);
-    const confirm = E.find(ask.texts, /^确认/, [0.5, 0.6, 0.2, 0.08]);
+    const confirm = await E.findText(ask, /^确认/, [0.5, 0.6, 0.2, 0.08]);
     if (!confirm) E.fail('refresh_ask_without_确认');
     const asking = await t.save(ask.frame, `refresh${index}-ask`);
     await E.click(...E.center(confirm));
@@ -171,7 +175,7 @@
       await E.click(...E.center(entry));
       let look = await E.waitFor(['shop', 'credit_shop'], { timeout: 10000 });
       if (look.screen !== 'credit_shop') {
-        const tab = E.find(look.texts, /信用交易所$/, [0.6, 0.06, 0.2, 0.05]);
+        const tab = await E.findText(look, /信用交易所$/, [0.6, 0.06, 0.2, 0.05]);
         if (!tab) E.fail('shop_without_信用交易所');
         await E.click(...E.center(tab));
         look = await E.waitFor('credit_shop', { timeout: 10000 });
@@ -185,7 +189,7 @@
         for (;;) {
           await E.park({ at: [0.5, 0.03], settle: 400 });
           look = await E.look();
-          const listed = cards(look);
+          const listed = await cards(look);
           t.note(`round ${round}: ${listed.map(c => `${c.name}${c.off ? `-${c.off}%` : ''}${c.soldOut ? '(售罄)' : ''}`).join(' ')}`);
           const next = listed.find(c => wanted(c) && !done.has(c.key));
           if (!next) break;

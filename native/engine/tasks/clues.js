@@ -26,7 +26,7 @@
   // friends who joined, and 确认 (2026-10-22 16:52).
   E.screen('exchange_done', look => look.has('情报交流结束', [0.3, 0.12, 0.4, 0.08]), 77);
   const closeResult = async look => {
-    const confirm = E.find(look.texts, /^确认/, [0.4, 0.86, 0.2, 0.08]);
+    const confirm = await E.findText(look, /^确认/, [0.4, 0.86, 0.2, 0.08]);
     if (!confirm) E.fail('exchange_done_without_确认');
     await E.click(...E.center(confirm));
   };
@@ -42,7 +42,7 @@
   // types are greyed out and their "0" does not OCR).
   async function readStock(look) {
     const cards = [];
-    for (const name of E.findAll(look.texts, /的线索$/, CLUE_LIST))
+    for (const name of await E.findAllText(look, /的线索$/, CLUE_LIST))
       cards.push({ name: name.text, at: E.center(name), stock: await E.readNumber(look.frame, [name.x + 0.125, name.y + 0.058, 0.025, 0.035]) });
     return cards;
   }
@@ -100,7 +100,7 @@
 
   async function giveExtras(t) {
     let look = await E.look();
-    const send = E.find(look.texts, /^赠予$/, SIDE);
+    const send = await E.findText(look, /^赠予$/, SIDE);
     if (!send) E.fail('reception_without_赠予');
     await E.click(...E.center(send));
     await E.waitFor('clue_send', { timeout: 10000 });
@@ -171,7 +171,7 @@
     async run(t) {
       await E.key('KeyI');
       const nexus = await E.waitFor('control_nexus', { timeout: 10000 });
-      const room = E.find(nexus.texts, /^会客室$/, ROOM_ON_MAP);
+      const room = await E.findText(nexus, /^会客室$/, ROOM_ON_MAP);
       if (!room) E.fail('nexus_without_会客室');
       await E.click(...E.center(room));
       let reception = await E.waitFor(['reception', 'exchange_done'], { timeout: 10000 });

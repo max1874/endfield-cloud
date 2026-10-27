@@ -65,15 +65,19 @@
   };
   // Cards visible in one look: name above 本地仓储, stock under it.
   // The selected card also carries a 当前 tag in the name line.
-  const readCards = look => E.findAll(look.texts, '本地仓储').flatMap(label => {
-    const value = E.find(look.texts, /^\d+(\.\d+)?万?$/, [label.x - 0.005, label.y + label.h, 0.065, 0.05]);
-    const name = E.findAll(look.texts, /[\u4e00-\u9fa5]{2,}/, [label.x - 0.01, label.y - 0.06, 0.15, 0.05]).find(t => !/当前/.test(t.text));
-    const unitPrice = E.find(look.texts, /^\d+/, [label.x + 0.06, label.y + label.h, 0.07, 0.05]);
-    const stock = value && stockValue(value.text);
-    // Names come with stray leading marks ("［重息壤"); keep the Chinese name only.
-    return name && stock ? [{ name: name.text.replace(/^[^\u4e00-\u9fa5]+/, ''), ...stock, text: value.text,
-      price: unitPrice ? parseInt(unitPrice.text, 10) : null }] : [];
-  });
+  const readCards = async look => {
+    const cards = [];
+    for (const label of E.findAll(look.texts, '本地仓储')) {
+      const value = E.find(look.texts, /^\d+(\.\d+)?万?$/, [label.x - 0.005, label.y + label.h, 0.065, 0.05]);
+      const name = (await E.findAllText(look, /[\u4e00-\u9fa5]{2,}/, [label.x - 0.01, label.y - 0.06, 0.15, 0.05])).find(t => !/当前/.test(t.text));
+      const unitPrice = E.find(look.texts, /^\d+/, [label.x + 0.06, label.y + label.h, 0.07, 0.05]);
+      const stock = value && stockValue(value.text);
+      // Names come with stray leading marks ("［重息壤"); keep the Chinese name only.
+      if (name && stock) cards.push({ name: name.text.replace(/^[^\u4e00-\u9fa5]+/, ''), ...stock, text: value.text,
+        price: unitPrice ? parseInt(unitPrice.text, 10) : null });
+    }
+    return cards;
+  };
   const scroll = async down => {
     await E.drag([LIST_BAR, down ? 0.3 : 0.65], [LIST_BAR, down ? 0.85 : 0.1], { ms: 700 });
     await E.sleep(900);
@@ -85,15 +89,15 @@
   // or null (list closed).
   async function chooseGoods(t, region, label, tried) {
     const open = await E.look();
-    const change = E.find(open.texts, '更换货品', [0.85, 0.55, 0.15, 0.08]);
-    if (!change) E.fail('outpost_without_更换货品');
+    const change = await E.findText(open, /(更换|选择)货品/, [0.85, 0.55, 0.15, 0.08]);
+    if (!change) E.fail('outpost_without_更换或选择货品');
     await E.click(...E.center(change));
     let look = await E.waitFor('goods_list', { timeout: 10000 });
     const cards = new Map();
-    for (const card of readCards(look)) cards.set(card.name, { ...card, down: false });
+    for (const card of await readCards(look)) cards.set(card.name, { ...card, down: false });
     const top = look;
     look = await scroll(true);
-    for (const card of readCards(look)) if (!cards.has(card.name)) cards.set(card.name, { ...card, down: true });
+    for (const card of await readCards(look)) if (!cards.has(card.name)) cards.set(card.name, { ...card, down: true });
     const ranked = [...cards.values()].sort((a, b) => b.value - a.value);
     t.note(`${label} goods: ${ranked.map(c => `${c.name}=${c.text}`).join(' ')}`);
     const allowed = ALLOWED[region];
@@ -124,7 +128,7 @@
       // A tooltip repeats the goods name; a card in the third column, second row has
       // its own name where the tooltip's would be (2026-10-23), so count the names.
       const named = E.findAll(look.texts, new RegExp(`^[^\u4e00-\u9fa5]*${pick.name}$`)).length;
-      if (named < 2 && !look.has('获取方式')) confirm = E.find(look.texts, /^确认$/, [0.7, 0.75, 0.3, 0.12]);
+      if (named < 2 && !look.has('获取方式')) confirm = await E.findText(look, /^确认$/, [0.7, 0.75, 0.3, 0.12]);
     }
     if (!confirm) E.fail('goods_list_without_确认');
     await E.click(...E.center(confirm));
@@ -158,7 +162,7 @@
     const stockReady = await number(set.frame, STOCK), reserveReady = await number(set.frame, RESERVE);
     if (stockReady === null) E.fail(`${outpost}_unread_before_trade`);
     if (stockReady - target < KEEP) E.fail(`${outpost}_would_keep_${stockReady - target}`);
-    const trade = E.find(set.texts, /^交易$/, [0.8, 0.88, 0.2, 0.1]);
+    const trade = await E.findText(set, /^交易$/, [0.8, 0.88, 0.2, 0.1]);
     if (!trade) E.fail(`${outpost}_without_交易`);
     await E.click(...E.center(trade));
     const result = await E.waitFor('reward', { timeout: 10000 });
@@ -213,8 +217,10 @@
     async run(t) {
       await E.regions.visit(t, '据点管理', async name => {
         const outposts = await E.waitFor('outposts', { timeout: 10000 });
-        const tabs = TABS.filter(([x, y]) => E.find(outposts.texts, /\S{3,}/, [x - 0.05, y - 0.04, 0.2, 0.06]));
-        for (let i = 0; i < tabs.length; i++) await tradeOutpost(t, name, i);
+        for (const [i, [x, y]] of TABS.entries()) {
+          if (await E.findText(outposts, /\S{3,}/, [x - 0.05, y - 0.04, 0.2, 0.06]))
+            await tradeOutpost(t, name, i);
+        }
       });
       if (!t.changes.length) return t.skip('no outpost had goods above 100');
       return t.pass(`traded at ${t.changes.length} outpost(s)`);

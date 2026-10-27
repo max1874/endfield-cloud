@@ -14,7 +14,7 @@
   E.screen('manual_item', look => look.has(/简制手册$/, [0.12, 0.15, 0.2, 0.06]) && look.has('收集进度'), 74);
 
   const press = async (look, text, roi) => {
-    const button = E.find(look.texts, text, roi);
+    const button = await E.findText(look, text, roi);
     if (!button) E.fail(`missing_${text}`);
     await E.click(...E.center(button));
   };
@@ -30,7 +30,7 @@
       await E.click(...FIRST_CARD);
       let look = await E.waitFor('manual_item', { timeout: 10000 });
       const before = await t.save(look.frame, 'manual-before');
-      const claimAll = E.find(look.texts, /一键领取/, [0, 0.45, 1, 0.5]);
+      const claimAll = await E.findText(look, /一键领取/, [0, 0.45, 1, 0.5]);
       if (!claimAll) return t.skip('no 一键领取: nothing to claim');
       await E.click(...E.center(claimAll));
 
@@ -46,7 +46,7 @@
           await t.save(look.frame, `manual-notice-${step}`);
           await E.click(0.5, 0.5);
         } else if (look.screen === 'manual_item') {
-          if (look.has(/一键领取/, [0, 0.45, 1, 0.5])) continue;
+          if (await E.findText(look, /一键领取/, [0, 0.45, 1, 0.5])) continue;
           break;
         } else {
           throw new E.EngineError('failed', `unexpected_screen_${look.screen}`, { look });
@@ -54,7 +54,7 @@
       }
       look = await E.waitFor('manual_item');
       const after = await t.save(look.frame, 'manual-after');
-      if (look.has(/一键领取/, [0, 0.45, 1, 0.5])) E.fail('一键领取_still_offered');
+      if (await E.findText(look, /一键领取/, [0, 0.45, 1, 0.5])) E.fail('一键领取_still_offered');
       if (!rewards.length) E.fail('一键领取_without_reward');
       t.change({ what: '简制手册奖励', before: 'claimable', after: 'claimed', rewards, frames: [before, ...rewards.map(r => r.frame), after] });
       return t.pass(`claimed ${rewards.length} reward screen(s)`);

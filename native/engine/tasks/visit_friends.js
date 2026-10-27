@@ -27,7 +27,7 @@
   E.screen('visit_pick', look => look.has(/选择拜访好友$/, [0, 0, 0.2, 0.07]), 72);
   E.screen('visit_end_ask', look => look.has(/是否要结束本次拜访/, [0.3, 0.45, 0.4, 0.06]), 77);
 
-  const friend = look => E.find(look.texts, FRIEND, FRIEND_AT)?.text || null;
+  const friend = async look => (await E.findText(look, FRIEND, FRIEND_AT))?.text || null;
   const balance = look => {
     const text = E.find(look.texts, BALANCE, BALANCE_AT)?.text;
     return text ? Number(text.match(BALANCE)[1]) : null;
@@ -47,7 +47,7 @@
   };
 
   async function confirmIn(look, roi) {
-    const button = E.find(look.texts, /^确(定|认)/, roi);
+    const button = await E.findText(look, /^确(定|认)/, roi);
     if (!button) E.fail(`${look.screen}_without_confirm`);
     await E.click(...E.center(button));
   }
@@ -63,7 +63,7 @@
     const tried = new Set();
     for (let step = 0; step < 8; step++) {
       const wanted = [left.clue > 0 && '情报交流', left.assist > 0 && '生产助力'].filter(Boolean);
-      const button = E.findAll(look.texts, /^(情报交流|生产助力)$/, BUTTONS)
+      const button = (await E.findAllText(look, /^(情报交流|生产助力)$/, BUTTONS))
         .find(b => wanted.includes(b.text) && !tried.has(Math.round(b.x * 100)));
       if (!button) break;
       tried.add(Math.round(button.x * 100));
@@ -91,7 +91,7 @@
       const frame = await t.save(look.frame, `f${index}-${kind}-after`);
       // The pressed button can turn into a wider bar (总控中枢: "心情恢复 … 已助力",
       // the mark at the card's right end, 2026-10-23), so look across the card.
-      const done = E.find(look.texts, kind === 'clue' ? '已交流' : '已助力', [button.x - 0.08, 0.79, 0.24, 0.06]);
+      const done = await E.findText(look, kind === 'clue' ? '已交流' : '已助力', [button.x - 0.08, 0.79, 0.24, 0.06]);
       if (!done) E.fail(`${room}_${kind}_button_not_marked`);
       t.change({ what: `${name} ${room} ${button.text}`, left: { before: left[kind], after: now[kind] },
         credits: { before, after }, frames: [shown, frame] });
@@ -111,7 +111,7 @@
       pick = await E.waitFor('visit_pick', { timeout: 5000 }).catch(() => null);
     }
     if (!pick) E.fail('visit_pick_not_reached');
-    const end = E.find(pick.texts, '结束拜访', [0.75, 0.87, 0.25, 0.08]);
+    const end = await E.findText(pick, '结束拜访', [0.75, 0.87, 0.25, 0.08]);
     if (!end) E.fail('visit_pick_without_结束拜访');
     await E.click(...E.center(end));
     await confirmIn(await E.waitFor('visit_end_ask', { timeout: 8000 }), [0.5, 0.6, 0.2, 0.08]);
@@ -137,7 +137,7 @@
       try {
         const seen = new Set();
         for (let i = 0; i < MAX_FRIENDS; i++) {
-          const name = friend(look);
+          const name = await friend(look);
           if (!name) E.fail('friend_name_unread');
           if (seen.has(name)) { t.note(`back at ${name}: every friend visited`); break; }
           seen.add(name);
@@ -146,7 +146,7 @@
           if (left.clue === 0 && left.assist === 0) break;
           await E.key('Tab');
           // The next friend's ship: the guest screen with another name.
-          look = await E.waitFor('guest', { timeout: 90000, onLook: l => { if (l.screen === 'guest' && friend(l) === name) l.screen = 'same_friend'; } });
+          look = await E.waitFor('guest', { timeout: 90000, onLook: async l => { if (l.screen === 'guest' && await friend(l) === name) l.screen = 'same_friend'; } });
         }
       } catch (error) {
         await endVisit().catch(e => E.log(`visit_friends end_visit_failed ${e.message}`));

@@ -35,7 +35,7 @@
   E.reward = {
     async read(look) {
       const items = [];
-      for (const name of E.findAll(look.texts, /\S/, REWARD_NAMES)) {
+      for (const name of await E.findAllText(look, /\S/, REWARD_NAMES)) {
         const [cx] = E.center(name);
         const roi = [cx - 0.02, name.y - 0.046, 0.04, 0.035];
         // Large counts carry a unit ("110万"); keep the text next to the number. Read
@@ -75,13 +75,16 @@
   const REGION_NAME = [0.07, 0.23, 0.15, 0.08];
   const REGION_SWITCH = [92 / 1920, 318 / 1080];
   E.regions = {
-    name: look => REGIONS.find(r => look.has(r, REGION_NAME)) || null,
+    async name(look) {
+      for (const region of REGIONS) if (await E.findText(look, region, REGION_NAME)) return region;
+      return null;
+    },
     // On the 地区建设 screen: open the picker, choose `target`, confirm.
     async switchTo(target) {
       await E.click(...REGION_SWITCH);
       await E.sleep(1200);
       let look = await E.look();
-      const card = E.find(look.texts, new RegExp(`${target}$`), [0.3, 0.28, 0.4, 0.06]);
+      const card = await E.findText(look, new RegExp(`${target}$`), [0.3, 0.28, 0.4, 0.06]);
       if (!card) E.fail(`region_picker_without_${target}`);
       await E.click(...E.center(card));
       // The confirm dialog showed after more than 800 ms once (2026-10-23).
@@ -89,14 +92,14 @@
       for (let i = 0; i < 10 && !confirm; i++) {
         await E.sleep(500);
         look = await E.look();
-        confirm = E.find(look.texts, /^确认/, [0.45, 0.55, 0.25, 0.1]);
+        confirm = await E.findText(look, /^确认/, [0.45, 0.55, 0.25, 0.1]);
       }
       if (!confirm) E.fail('region_picker_without_确认');
       await E.click(...E.center(confirm));
       for (let i = 0; i < 20; i++) {
         await E.sleep(500);
         look = await E.look();
-        if (look.screen === 'region' && E.regions.name(look) === target) return look;
+        if (look.screen === 'region' && await E.regions.name(look) === target) return look;
       }
       E.fail(`region_not_switched_to_${target}`);
     },
@@ -109,10 +112,10 @@
       if (!entry) E.fail('menu_without_地区建设');
       await E.click(...E.center(entry));
       let region = await E.waitFor('region', { timeout: 10000 });
-      const first = E.regions.name(region);
+      const first = await E.regions.name(region);
       if (!first) E.fail('region_name_unread');
       for (const name of [first, ...REGIONS.filter(r => r !== first)]) {
-        if (E.regions.name(region) !== name) region = await E.regions.switchTo(name);
+        if (await E.regions.name(region) !== name) region = await E.regions.switchTo(name);
         await t.save(region.frame, `region-${name === '武陵' ? 'wuling' : 'valley'}`);
         const button = E.find(region.texts, label);
         if (!button) E.fail(`region_without_${label}`);
@@ -179,7 +182,7 @@
           await E.reward.confirm();
           break;
         case 'tap_notice': {
-          const hint = E.find(look.texts, TAP_HINT, TAP_REGION);
+          const hint = await E.findText(look, TAP_HINT, TAP_REGION);
           E.log(`nav tap_notice "${hint.text}" -> click`);
           await E.click(...E.center(hint));
           await E.sleep(1500);

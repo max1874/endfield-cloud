@@ -164,6 +164,31 @@
   const matches = (text, pattern) => pattern instanceof RegExp ? pattern.test(text) : text.includes(pattern);
   E.find = (texts, pattern, roi) => texts.find(t => inside(t, roi) && matches(t.text, pattern)) || null;
   E.findAll = (texts, pattern, roi) => texts.filter(t => inside(t, roi) && matches(t.text, pattern));
+  // Full-frame OCR misses pill labels that crops read (macOS 27 run 20261026-210309-2ptr; Max's 2026-10-26 传送 miss).
+  const cropTexts = (look, roi, scale) => {
+    const cache = look.cropTexts ??= new Map();
+    const key = JSON.stringify([roi, scale]);
+    if (!cache.has(key)) cache.set(key, E.ocr(look.frame, roi, { scale }));
+    return cache.get(key);
+  };
+  E.findText = async (look, pattern, roi) => {
+    const hit = E.find(look.texts, pattern, roi);
+    if (hit || !roi) return hit;
+    for (const scale of [2, 3]) {
+      const found = E.find(await cropTexts(look, roi, scale), pattern, roi);
+      if (found) return found;
+    }
+    return null;
+  };
+  E.findAllText = async (look, pattern, roi) => {
+    const hits = E.findAll(look.texts, pattern, roi);
+    if (hits.length || !roi) return hits;
+    for (const scale of [2, 3]) {
+      const found = E.findAll(await cropTexts(look, roi, scale), pattern, roi);
+      if (found.length) return found;
+    }
+    return [];
+  };
   E.center = t => [t.x + t.w / 2, t.y + t.h / 2];
   // Integers in a region, read with OCR (thousands separators and spaces dropped).
   E.readNumbers = async (frame, roi, options) => {

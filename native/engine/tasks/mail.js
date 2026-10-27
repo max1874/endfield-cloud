@@ -8,7 +8,7 @@
   const MAIL = [0.229, 0.088];
   const CLAIM_ALL = [0, 0.88, 0.3, 0.1];
 
-  E.screen('mailbox', look => look.has('邮箱', [0, 0, 0.12, 0.07]) && look.has('收件箱', [0, 0.06, 0.15, 0.05]), 75);
+  E.screen('mailbox', look => look.has(/邮/, [0, 0, 0.12, 0.07]) && look.has(/收件/, [0, 0.06, 0.15, 0.05]), 75);
 
   E.task('mail_claim', {
     title: '邮件 · 全部收取',
@@ -18,7 +18,7 @@
       await E.click(...MAIL);
       let look = await E.waitFor('mailbox', { timeout: 10000 });
       const before = await t.save(look.frame, 'mailbox-before');
-      const button = E.find(look.texts, /^全部收取$/, CLAIM_ALL);
+      const button = await E.findText(look, /^全部收取$/, CLAIM_ALL);
       if (!button) E.fail('mailbox_without_全部收取');
       await E.click(...E.center(button));
       let reward = null;

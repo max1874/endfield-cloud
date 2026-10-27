@@ -39,7 +39,7 @@
 
   // 市场 cards below the 市场 header: name label ending 货组, price box above it.
   async function readMarket(look) {
-    const header = E.find(look.texts, /^市场$/, [0.05, 0.2, 0.15, 0.8]);
+    const header = await E.findText(look, /^市场$/, [0.05, 0.2, 0.15, 0.8]);
     if (!header) return null;
     const cards = [];
     for (const name of E.findAll(look.texts, /货组$/)) {
@@ -55,7 +55,7 @@
 
   async function readDialog(look) {
     const read = roi => E.readNumber(look.frame, roi);
-    return { name: E.find(look.texts, /货组$/, NAME)?.text || null, price: await read(PRICE), owned: await read(OWNED),
+    return { name: (await E.findText(look, /货组$/, NAME))?.text || null, price: await read(PRICE), owned: await read(OWNED),
       quantity: await read(QUANTITY), max: await read(MAX_LABEL), total: await read(TOTAL), balance: await read(BALANCE) };
   }
 
@@ -146,7 +146,7 @@
     if (now.quantity > before.left) E.fail(`${pick.name}_quantity_${now.quantity}_over_quota_${before.left}`);
     if (now.total !== now.quantity * pick.price) E.fail(`${pick.name}_total_${now.total}_expected_${now.quantity * pick.price}`);
     if (now.total > dialog.balance) E.fail(`${pick.name}_total_${now.total}_over_balance_${dialog.balance}`);
-    const buy = E.find(set.texts, /^购买$/, [0.68, 0.77, 0.25, 0.1]);
+    const buy = await E.findText(set, /^购买$/, [0.68, 0.77, 0.25, 0.1]);
     if (!buy) E.fail('dialog_without_购买');
     await E.click(...E.center(buy));
 
