@@ -9,15 +9,47 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 
 ### Tester rerun on macOS 27 — added 2026-10-27
 
-- **Trigger:** Max authorizes sending v0.2.3 (or later) to the macOS 27 tester, whose run
+- **Trigger:** Max authorizes sending v0.2.4 (or later) to the macOS 27 tester, whose run
   `20261026-210309-2ptr` (macOS 27.0.1; copy in `artifacts/tester-macos27-20261026/`)
   failed 9 of 10 tasks.
-- **Check:** his next 每日全部 run directory: buttons read through the crop
-  fallback (确定, 确认, 传送, 一键领取, 市场), the mailbox recognized, an outpost
-  with 选择货品 goes through goods selection and trades, 日常 reads 活跃度 and the
-  milestones in his 悠游便签 layout. None of these states exist on Max's account.
+- **Seen on Max's Mac with the tester's account (2026-10-27, macOS 26.7):** runs
+  `20261027-115141-e6ci`, `20261027-143022-82cs`, `20261027-162543-18ze`: 确定,
+  确认, 一键领取, 0% 信赖度 gifts, 8 outposts, 武陵 stock purchase, mail, 日常
+  0 → 100 passed. What only his machine shows is macOS 27's Vision OCR.
+- **Check:** his next 每日全部 run directory, every task's verdict and frames.
 - **Done when:** his run ends with every task passed or nothing_to_do, or each
   remaining failure has its own item.
+
+### Paths changed on 2026-10-27 that have not run live — added 2026-10-27
+
+- **Trigger:** any 每日全部 run on v0.2.4 or later.
+- **Check:** in the run's results:
+  - `stockpile` after a purchase whose goods left 市场: the reopened card shows
+    出售物资, the toggle goes to 购买 and the owned count/balance are read (run
+    `20261027-162543-18ze` timed out there; nothing was sold);
+  - `operator_gifts` note "talk did not open (left?)" and the task going on;
+  - `dijiang_collect` / `clue_exchange` note "I left the world open", a frame
+    `nexus-unavailable-here`, the kiosk teleport and the 总控中枢 opening on the
+    second I.
+- **Done when:** each path is seen passing once, or fails with its own item.
+
+### Contact kiosk prompt not found — added 2026-10-27
+
+- **Trigger:** `operator_gifts` fails `kiosk_prompt_not_found` again (tester account,
+  run `20261027-192412-3g3r`: minimap placed the player at (182,180), next to the kiosk,
+  but the frame `000-kiosk-not-reached.png` shows a doorway with no prompt; the same
+  account reached it in run `20261027-162543-18ze`).
+- **Check:** the walk log (`operator_gifts walk …`) and the frame.
+- **Done when:** the cause is known and the walk handles it.
+
+### Browser error "The object is in an invalid state." — added 2026-10-27
+
+- **Trigger:** a task fails with that summary (credit_shop, run
+  `20261027-115141-e6ci`: every later frame grab in the page failed, so the run
+  stopped). WebKit throws it when `getImageData` cannot read a canvas's pixels; a
+  WKWebView probe holding 2000 frames (11 GB) did not reproduce it.
+- **Check:** the task's notes now carry the error's stack (`1246b41`).
+- **Done when:** the failing call and its cause are known and handled.
 
 ### Credit shop: the day's last refresh — added 2026-10-27
 
@@ -34,7 +66,9 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
   `expected_control_nexus_saw_world` again (Max's runs 2026-10-26 12:26 and
   2026-10-27 09:17, the tester's run; three later runs on 2026-10-27 opened it).
 - **Check:** the end frame and the screen before I was pressed; both failing frames
-  show the player in a red 激发 aura with an F 激发 prompt.
+  show the player in a red 激发 aura with an F 激发 prompt, and the tester's frame
+  has no I among the HUD's key hints (T, Y, K). v0.2.4 teleports to the contact
+  kiosk and presses I again (see "Paths changed on 2026-10-27").
 - **Done when:** the cause is known and the task handles it.
 
 ### Unverified paths after the next reset — added 2026-10-23
