@@ -68,11 +68,12 @@
   const takeOver = button('接管', false, () => E.pause('take_over'));
   const resume = button('继续', true, () => E.resume());
   const end = button('结束', false, () => E.stop('ended_by_user'));
-  bar.append(label, takeOver, resume, end);
+  const update = button('重启更新', true, () => E.requestUpdate());
+  bar.append(label, takeOver, resume, end, update);
   for (const type of ['mousedown', 'mouseup', 'click', 'pointerdown', 'pointerup'])
     bar.addEventListener(type, event => event.stopPropagation());
   E.controls = bar;
-  // mode: 'running' (接管), 'paused' (继续, 结束) or 'done' (no buttons, fades after 15 s).
+  // mode: running, paused, done (fades after 15 s), or update (stays until acted on).
   let fade = null;
   const show = (text, mode) => {
     if (!bar.isConnected) document.body.append(bar);
@@ -80,10 +81,42 @@
     label.textContent = text;
     takeOver.style.display = mode === 'running' ? '' : 'none';
     resume.style.display = end.style.display = mode === 'paused' ? '' : 'none';
+    update.style.display = mode === 'update' ? '' : 'none';
     bar.style.padding = mode === 'done' ? '6px 12px' : '4px 6px 4px 12px';
     bar.style.display = 'flex';
-    if (mode === 'done') fade = setTimeout(() => { bar.style.display = 'none'; }, 15000);
+    if (mode === 'done') fade = setTimeout(() => {
+      if (pendingUpdate && !E.running()) showUpdate();
+      else bar.style.display = 'none';
+    }, 15000);
     E.status(text);
+  };
+
+  let pendingUpdate = null, updateInstalling = false;
+  const showUpdate = () => show(`新版本 v${pendingUpdate} 已就绪`, 'update');
+  E.updateReady = version => {
+    const same = pendingUpdate === version;
+    pendingUpdate = version;
+    const retry = updateInstalling;
+    updateInstalling = false;
+    if (!E.running() && (!same || retry || bar.style.display === 'none')) showUpdate();
+  };
+  E.requestUpdate = () => {
+    if (!pendingUpdate || updateInstalling) return;
+    if (E.running()) {
+      // Keep takeover/resume/end usable while briefly changing only the label.
+      const previous = label.textContent;
+      label.textContent = '运行结束后再更新';
+      setTimeout(() => {
+        if (label.textContent === '运行结束后再更新') label.textContent = previous;
+      }, 2500);
+      return;
+    }
+    // Close the idle-check/start-run race before crossing the native bridge.
+    updateInstalling = true;
+    bridge({ op: 'update_install' }).catch(() => {
+      updateInstalling = false;
+      showUpdate();
+    });
   };
 
   // Run `step`; when a pause interrupts it, hold until 继续 and run it again from the
@@ -110,7 +143,7 @@
   // with 'auto', it starts one only when none is playing and exits only the one it
   // started.
   E.run = async (ids, { options = {}, session = false } = {}) => {
-    if (current) { E.log('run rejected: already running'); return null; }
+    if (current || updateInstalling) { E.log('run rejected: already running or updating'); return null; }
     const runId = `${stamp()}-${Math.random().toString(36).slice(2, 6)}`;
     const results = [];
     current = runId;

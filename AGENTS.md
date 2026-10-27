@@ -35,8 +35,11 @@ and licensed under AGPL-3.0 (`LICENSE`, Max 2026-10-27), which these files requi
 ## Runtime
 
 - Releases: bump `version` in `Cargo.toml` and `tauri.conf.json`, run
-  `scripts/build-app.sh --release`, tag `vX.Y.Z` on `main` and attach
-  `dist/endfield-cloud-vX.Y.Z-macos-arm64.zip` to the GitHub release. The app is
+  `key run UPDATE_SIGNING_KEY=ENDFIELD_CLOUD_UPDATE_SIGNING_KEY -- scripts/build-app.sh --release`,
+  tag `vX.Y.Z` on `main` and attach `dist/endfield-cloud-vX.Y.Z-macos-arm64.zip`
+  (manual installs), `dist/endfield-cloud-vX.Y.Z-macos-arm64.app.tar.gz` and
+  `dist/latest.json` to the GitHub release. The signature is embedded in
+  `latest.json`; attaching the `.sig` is optional. The app is
   named 云终末地 / Endfield Cloud; the bundle id, binary name and data directory
   keep `prototype` so existing logins and evidence stay in place.
 - App icon: `scripts/make-icon.sh` rebuilds `icons/icon.png` and `icons/icon.icns`

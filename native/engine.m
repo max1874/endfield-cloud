@@ -10,6 +10,8 @@
 // evidence storage (also read back, for state kept across runs) and logging; it never
 // acts on the game itself.
 
+extern void endfield_update_install(void);
+
 static char EngineBridgeKey;
 static NSString *const EngineWorldName = @"endfield-engine";
 
@@ -96,7 +98,10 @@ static NSArray *RecognizeText(NSData *image, BOOL fast, BOOL digits, NSError **e
     }
     NSDictionary *body = message.body;
     NSString *op = body[@"op"];
-    if ([op isEqualToString:@"log"]) {
+    if ([op isEqualToString:@"update_install"]) {
+        endfield_update_install();
+        reply(@YES, nil);
+    } else if ([op isEqualToString:@"log"]) {
         NSString *text = [body[@"text"] isKindOfClass:NSString.class] ? body[@"text"] : @"";
         if (text.length > 1000) text = [text substringToIndex:1000];
         fprintf(stderr, "engine %s\n", [text stringByReplacingOccurrencesOfString:@"\n" withString:@" "].UTF8String);

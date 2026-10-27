@@ -4,3 +4,5 @@
 /.toolchain/
 /artifacts/
 .DS_Store
+
+/scripts/update-signer/target/

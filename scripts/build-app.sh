@@ -1,7 +1,7 @@
 #!/bin/bash
 # Usage: build-app.sh [--release]
-# --release builds the release profile (no dev inbox) and also writes the zip
-# attached to GitHub releases.
+# --release builds the release profile (no dev inbox), manual-install zip,
+# signed updater archive and latest.json for GitHub releases.
 set -euo pipefail
 project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$project_dir"
@@ -15,6 +15,10 @@ fi
 profile=debug
 cargo_flags=()
 if [ "${1:-}" = "--release" ]; then
+  if [ -z "${UPDATE_SIGNING_KEY:-}" ]; then
+    echo "Release builds require UPDATE_SIGNING_KEY. Run: key run UPDATE_SIGNING_KEY=ENDFIELD_CLOUD_UPDATE_SIGNING_KEY -- scripts/build-app.sh --release" >&2
+    exit 1
+  fi
   profile=release
   cargo_flags=(--release)
 fi
@@ -58,4 +62,27 @@ if [ "$profile" = release ]; then
   rm -f "$zip_path"
   (cd "$project_dir/dist" && ditto -c -k --keepParent "Endfield Cloud.app" "$zip_path")
   printf 'Zip: %s\n' "$zip_path"
+  archive_name="endfield-cloud-v$version-macos-arm64.app.tar.gz"
+  archive_path="$project_dir/dist/$archive_name"
+  # The macOS updater strips exactly one path component before replacing the app.
+  COPYFILE_DISABLE=1 tar -czf "$archive_path" -C "$project_dir/dist" "Endfield Cloud.app"
+  cargo run --release --jobs 4 --manifest-path scripts/update-signer/Cargo.toml -- sign "$archive_path"
+  python3 - "$version" "$archive_path" <<'PYJSON'
+import datetime
+import json
+import pathlib
+import sys
+version, archive = sys.argv[1], pathlib.Path(sys.argv[2])
+manifest = {
+    "version": version,
+    "notes": "",
+    "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "platforms": {"darwin-aarch64": {
+        "signature": pathlib.Path(str(archive) + ".sig").read_text().strip(),
+        "url": f"https://github.com/max1874/endfield-cloud/releases/download/v{version}/{archive.name}",
+    }},
+}
+(archive.parent / "latest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+PYJSON
+  printf 'Update: %s\nManifest: %s/dist/latest.json\n' "$archive_path" "$project_dir"
 fi

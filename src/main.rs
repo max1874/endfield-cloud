@@ -1,3 +1,5 @@
+mod update;
+
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
@@ -135,6 +137,7 @@ fn create_window(
                 if let Err(error) = engine_command(&window, "void 0") {
                     eprintln!("engine_inject_failed: {error}");
                 }
+                update::notify_ready(window.app_handle());
             }
         })
         .on_new_window(move |url, features| {
@@ -183,6 +186,7 @@ fn create_window(
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             eprintln!("prototype_started version={} engine=WKWebView", env!("CARGO_PKG_VERSION"));
             let menu = Menu::default(app.handle())?;
@@ -197,6 +201,9 @@ fn main() {
             )?;
             let mute = CheckMenuItem::with_id(app, "mute", "静音", true, false, Some("CmdOrCtrl+Shift+M"))?;
             app.manage(mute.clone());
+            let check_update = MenuItem::with_id(app, "update-check", "检查更新", true, None::<&str>)?;
+            let install_update = MenuItem::with_id(app, "update-install", "重启并更新", false, None::<&str>)?;
+            update::setup(app.handle(), check_update.clone(), install_update.clone());
             let sensitivity_1 = MenuItem::with_id(app, "sensitivity-1", "鼠标灵敏度 1×", true, None::<&str>)?;
             let sensitivity_2 = MenuItem::with_id(app, "sensitivity-2", "鼠标灵敏度 2×", true, None::<&str>)?;
             let sensitivity_4 = MenuItem::with_id(app, "sensitivity-4", "鼠标灵敏度 4×", true, None::<&str>)?;
@@ -204,7 +211,7 @@ fn main() {
             let sensitivity_16 = MenuItem::with_id(app, "sensitivity-16", "鼠标灵敏度 16×", true, None::<&str>)?;
             menu.append(&Submenu::with_items(
                 app, "游戏", true,
-                &[&reload, &home, &fullscreen, &mute, &sensitivity_1, &sensitivity_2, &sensitivity_4, &sensitivity_8, &sensitivity_16],
+                &[&reload, &home, &fullscreen, &mute, &check_update, &install_update, &sensitivity_1, &sensitivity_2, &sensitivity_4, &sensitivity_8, &sensitivity_16],
             )?)?;
             let automation = Submenu::new(app, "自动化", true)?;
             automation.append(&MenuItem::with_id(app, "engine-run-daily", "运行：每日全部", true, None::<&str>)?)?;
@@ -226,6 +233,11 @@ fn main() {
             Ok(())
         })
         .on_menu_event(|app, event| {
+            match event.id().as_ref() {
+                "update-check" => { update::check_now(app); return; }
+                "update-install" => { update::request_install(app); return; }
+                _ => {}
+            }
             let windows = app.webview_windows();
             let current = windows
                 .values()
@@ -286,6 +298,15 @@ fn main() {
                 eprintln!("menu_action_failed: {error}");
             }
         })
-        .run(tauri::generate_context!())
-        .expect("failed to run cloud prototype");
+        .build(tauri::generate_context!())
+        .expect("failed to build cloud prototype")
+        .run(|app, event| {
+            match event {
+                tauri::RunEvent::ExitRequested { api, .. } => {
+                    if update::defer_exit(app) { api.prevent_exit(); }
+                }
+                tauri::RunEvent::Exit => update::on_exit(app),
+                _ => {}
+            }
+        });
 }
