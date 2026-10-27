@@ -24,9 +24,11 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 
 - **Trigger:** any 每日全部 run on v0.2.4 or later.
 - **Check:** in the run's results:
-  - `stockpile` after a purchase whose goods left 市场: the reopened card shows
-    出售物资, the toggle goes to 购买 and the owned count/balance are read (run
-    `20261027-162543-18ze` timed out there; nothing was sold);
+  - `stockpile` after a real purchase: back to 当前拥有, the bought card found and
+    reopened, owned/balance reconciled (run `20261027-162543-18ze` timed out there;
+    nothing was sold). The 出售物资 → 购买 switch itself passed through `openCard`
+    in a probe on Max's account, run `20261027-202705-dl3k`
+    (`002-__-sell-side.png`, `003-__-buy-side.png`);
   - `operator_gifts` note "talk did not open (left?)" and the task going on;
   - `dijiang_collect` / `clue_exchange` note "I left the world open", a frame
     `nexus-unavailable-here`, the kiosk teleport and the 总控中枢 opening on the
