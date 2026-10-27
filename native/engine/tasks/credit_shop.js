@@ -133,11 +133,18 @@
     return true;
   }
 
+  const refreshesLeft = async look => {
+    const count = E.find(look.texts, REFRESHES)?.text.match(REFRESHES);
+    if (count) return Number(count[1]);
+    if (await E.findText(look, '今日刷新次数已用尽', [0.55, 0.88, 0.45, 0.07])) return 0;
+    return null;
+  };
+
   // Refresh once if 信用 and the day's refreshes allow; returns why not otherwise.
   async function refresh(t, look, index) {
-    const left = E.find(look.texts, REFRESHES)?.text.match(REFRESHES);
-    if (!left) E.fail('refreshes_unread');
-    if (Number(left[1]) === 0) return 'no refreshes left today';
+    const left = await refreshesLeft(look);
+    if (left === null) E.fail('refreshes_unread');
+    if (left === 0) return 'no refreshes left today';
     const cost = Number(E.find(await E.ocr(look.frame, REFRESH_COST, { scale: 2 }), /^\d+$/)?.text ?? NaN);
     const before = balance(look);
     if (!cost || before === null) E.fail(`refresh_cost_${cost}_balance_${before}_unread`);
@@ -156,11 +163,11 @@
     const { look: after } = await backToShop(t, `refresh${index}`);
     const frame = await t.save(after.frame, `refresh${index}-after`);
     const now = balance(after);
-    const remaining = E.find(after.texts, REFRESHES)?.text.match(REFRESHES);
+    const remaining = await refreshesLeft(after);
     if (now !== before - cost) E.fail(`refresh_credits_${before}_minus_${cost}_read_${now}`);
-    if (!remaining || Number(remaining[1]) !== Number(left[1]) - 1) E.fail(`refreshes_${left[1]}_after_${remaining?.[1]}`);
+    if (remaining !== left - 1) E.fail(`refreshes_${left}_after_${remaining}`);
     t.change({ what: '立即刷新', cost, credits: { before, after: now },
-      refreshes: { before: Number(left[1]), after: Number(remaining[1]) }, frames: [shown, asking, frame] });
+      refreshes: { before: left, after: remaining }, frames: [shown, asking, frame] });
     return null;
   }
 
