@@ -110,7 +110,11 @@
     if (name !== card.name) E.fail(`opened_${name}_not_${card.name}`);
     const tag = E.find(look.texts, /^-\d+%$/, ITEM_OFF);
     if ((tag ? Number(tag.text.slice(1, -1)) : 0) !== card.off) E.fail(`${name}_dialog_discount_${tag?.text}_list_${card.off}`);
-    const price = Number(E.find(await E.ocr(look.frame, ITEM_TOTAL, { scale: 2 }), /^\d+$/)?.text ?? NaN) || null;
+    // A lone digit ("8" at -99%) reads only in the full frame; the price is the
+    // rightmost number, after the icon.
+    const total = E.findAll(look.texts, /^\d+$/, ITEM_TOTAL).sort((a, b) => b.x - a.x)[0];
+    const price = Number(total?.text ??
+      E.find(await E.ocr(look.frame, ITEM_TOTAL, { scale: 2 }), /^\d+$/)?.text ?? NaN) || null;
     const before = await E.readNumber(look.frame, DIALOG_BALANCE);
     if (price === null || before === null) E.fail(`${name}_price_${price}_balance_${before}_unread`);
     if (price > before) {
