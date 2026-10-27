@@ -1,6 +1,6 @@
 [package]
 name = "endfield-cloud-prototype"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 publish = false
 license = "AGPL-3.0-only"
