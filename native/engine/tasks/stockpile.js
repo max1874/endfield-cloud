@@ -25,6 +25,10 @@
 
   E.screen('stock_market', look => look.has(/物资调度$/, [0, 0, 0.3, 0.07]) && look.has('弹性需求物资'), 74);
   E.screen('stock_buy', look => look.has('购买物资', [0.14, 0.17, 0.2, 0.06]), 77);
+  // A 当前拥有 card opens the same dialog on its 出售 side; a 购买 | 出售 toggle sits
+  // top right (tester run 20261027-162543-18ze). Nothing on it is ever pressed but 购买.
+  E.screen('stock_sell', look => look.has('出售物资', [0.14, 0.17, 0.2, 0.06]), 77);
+  const SIDE_TOGGLE = [0.66, 0.25, 0.18, 0.06];
 
   const quota = look => {
     const m = look.texts.map(t => t.text).join(' ').match(QUOTA);
@@ -62,7 +66,14 @@
   async function openCard(t, label, card) {
     await E.click(...card.at);
     await E.park({ at: [0.5, 0.1], settle: 600 });
-    const look = await E.waitFor('stock_buy', { timeout: 8000 });
+    let look = await E.waitFor(['stock_buy', 'stock_sell'], { timeout: 8000 });
+    if (look.screen === 'stock_sell') {
+      const buySide = await E.findText(look, /^购买/, SIDE_TOGGLE);
+      if (!buySide) E.fail(`${card.name}_sell_dialog_without_购买`, { look });
+      await E.click(...E.center(buySide));
+      await E.park({ at: [0.5, 0.1], settle: 600 });
+      look = await E.waitFor('stock_buy', { timeout: 8000 });
+    }
     const dialog = await readDialog(look);
     if (dialog.name !== card.name) E.fail(`opened_${dialog.name}_not_${card.name}`);
     return { look, dialog };
@@ -177,9 +188,13 @@
       if (await E.findText(after, /^当前拥有$/, [0.05, 0.23, 0.2, 0.7])) break;
     }
     await t.save(after.frame, `${tag}-owned-list`);
-    const name = (await E.findAllText(after, /货组$/, [0.05, 0.23, 0.85, 0.74])).find(n => n.text === pick.name);
-    if (!name) E.fail(`${pick.name}_not_on_screen_after`);
-    const again = { name: pick.name, at: [E.center(name)[0], name.y - 0.15] };
+    // A 市场 card opens 购买物资 directly; the 当前拥有 one opens its 出售 side.
+    let again = (await readMarket(after) || []).find(c => c.name === pick.name);
+    if (!again) {
+      const name = (await E.findAllText(after, /货组$/, [0.05, 0.23, 0.85, 0.74])).find(n => n.text === pick.name);
+      if (!name) E.fail(`${pick.name}_not_on_screen_after`);
+      again = { name: pick.name, at: [E.center(name)[0], name.y - 0.15] };
+    }
     const { look: check, dialog: post } = await openCard(t, tag, again);
     const done = await t.save(check.frame, `${tag}-after`);
     await E.key('Escape');

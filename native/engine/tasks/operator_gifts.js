@@ -321,17 +321,21 @@
     return null;
   }
 
-  // Alt shows the cursor, which takes clicks on the interaction list.
+  // Alt shows the cursor, which takes clicks on the interaction list. Null when the
+  // operator left before the talk opened: summoned operators stay only a short while
+  // (佩丽卡 and 弧光 on a tester account, 2026-10-27), and the world is back.
   async function talk(name, entry) {
     await E.altClick(...E.center(entry));
+    let look = null;
     for (let i = 0; i < 6; i++) {
       await E.sleep(1200);
-      const look = await E.look();
+      look = await E.look();
       if (look.screen === 'operator_talk') return look;
       // The greeting line hides the choices until clicked.
       if (look.texts.some(t => sameName(t.text, name) && t.y > 0.78 && t.y < 0.85)) await E.click(0.5, 0.6);
     }
-    E.fail(`talk_with_${name}_not_opened`);
+    if (look.screen === 'world') return null;
+    E.fail(`talk_with_${name}_not_opened`, { look });
   }
 
   const trustOf = async look => {
@@ -518,6 +522,11 @@
           if (!entry) { t.note(`round ${round}: ${card.name} not reached`); continue; }
           const index = talks++;
           const talkLook = await talk(card.name, entry);
+          if (!talkLook) {
+            await t.save(await E.grab(), `op${index}-talk-not-opened`);
+            t.note(`round ${round}: ${card.name}: talk did not open (left?)`);
+            continue;
+          }
           // A card's trust icon can OCR as a leading digit (0% → 10%). Identify
           // the speaker by the name on the trust label, not by that percentage.
           const label = await E.findText(talkLook, /的信赖度$/, [0.76, 0.38, 0.2, 0.06]);
