@@ -20,6 +20,25 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 - **Done when:** his run ends with every task passed or nothing_to_do, or each
   remaining failure has its own item.
 
+### Full daily run while minimized or hidden on v0.2.6 — added 2026-10-28
+
+- **Trigger:** a 每日全部 run on v0.2.6 or later during which the window was
+  minimized or the app hidden (run `20261028-104144-5lvi` on 0.2.5: presses took
+  46-160 s instead of 3 s, 拜访好友 timed out and 赠送干员礼物 failed
+  `anchor_panel_without_传送`).
+- **Measured on 0.2.6 code (debug, app hidden in the world):** a cursor move
+  1.7-2.1 s vs 15.7-17.7 s without the fix; menu open/close 2-3 s either way.
+  A whole daily run hidden or minimized has not run; minimized was measured only
+  in a standalone WKWebView.
+- **Also seen 2026-10-28, cause unknown:** the hidden app became visible again during
+  or at the end of a run; one start sat at the 标题 screen ignoring 37 clicks while
+  hidden from launch; twice 开始游戏 got no response for 15 presses (once with
+  6544 测速失败) and a page reload fixed it.
+- **Check:** the run's per-press frame times (visit_friends `*-before`/`*-after`
+  `videoTime`) and verdicts.
+- **Done when:** such a run passes 拜访好友 with presses under about 10 s, or a
+  failure gets its own item.
+
 ### Paths changed on 2026-10-27 that have not run live — added 2026-10-27
 
 - **Trigger:** any 每日全部 run on v0.2.4 or later.
