@@ -58,6 +58,13 @@ and licensed under AGPL-3.0 (`LICENSE`, Max 2026-10-27), which these files requi
 - Server-side conditions that are not our bugs: "上一局数据正在火速处理中" for about
   a minute after a session ends, and occasional "排队超时". Retry; do not treat
   them as client failures.
+- Minimized/hidden (measured 2026-10-28; run `20261028-104144-5lvi`): even with
+  occlusion detection and App Nap off, timers throttle to 1 s and can stop when
+  minimized. `native/background.m` disables WKPreferences SPI
+  `_setHiddenPageDOMTimerThrottlingEnabled:`, `_setHiddenPageDOMTimerThrottlingAutoIncreases:`
+  and `_setPageVisibilityBasedProcessSuppressionEnabled:` on the live view to prevent
+  this. Hidden timers still align to ~100 ms: a cursor move costs ~2.6 s instead
+  of 0.16 s.
 - Screen lock (2026-10-22): WebKit marks the page hidden while the screen is locked
   even with occlusion detection off, and the cloud page then refuses to start a
   session; `native/visibility.js` makes the page read itself as visible. A page
