@@ -20,6 +20,17 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 - **Done when:** his run ends with every task passed or nothing_to_do, or each
   remaining failure has its own item.
 
+### 生态农场 农植机 store loop through the task — added 2026-10-29
+
+- **Trigger:** a v0.2.7+ run of `eco_farm` while a 自动农植机 (祀的画 or 武陵城)
+  holds produce; it fills slowly (empty 40 minutes after being drained 2026-10-29).
+- **Seen so far:** the loop only in probes (祀的画: 3 presses until empty); through
+  the task, 牧场 stored once (`20261029-141245-1nrh`) and every 农植机 read empty.
+- **Check:** the run's `*_farm-reward-N` frames and `*_farm-after` frame; the
+  change record's `stored` total against the reward screens.
+- **Done when:** a 农植机 is emptied through the task with frames that agree, or the
+  failure gets its own item.
+
 ### Full daily run while minimized or hidden on v0.2.6 — added 2026-10-28
 
 - **Trigger:** a 每日全部 run on v0.2.6 or later during which the window was

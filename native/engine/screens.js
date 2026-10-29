@@ -33,9 +33,10 @@
   // and is not yet seen here. Esc does not close these.
   E.screen('reward', look => look.has(/获得奖励|邮箱奖励|据点交易|购买成功|^奖励$/, [0.3, 0.09, 0.4, 0.07]), 76);
   E.reward = {
-    async read(look) {
+    // `names`: where the name labels sit; two-row rewards (生态农场) pass their own.
+    async read(look, names = REWARD_NAMES) {
       const items = [];
-      for (const name of await E.findAllText(look, /\S/, REWARD_NAMES)) {
+      for (const name of await E.findAllText(look, /\D/, names)) {
         const [cx] = E.center(name);
         const roi = [cx - 0.02, name.y - 0.046, 0.04, 0.035];
         // Large counts carry a unit ("110万"); keep the text next to the number. Read

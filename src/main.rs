@@ -74,6 +74,7 @@ const DAILY_TASKS: &[&str] = &[
     "credit_shop",
     "outpost_trading",
     "stockpile",
+    "eco_farm",
     "prod_manual",
     "mail_claim",
     "daily_tasks",
@@ -92,6 +93,7 @@ const ENGINE_MENU_TASKS: &[(&str, &str)] = &[
     ("prod_manual", "运行：简制手册 · 领取"),
     ("outpost_trading", "运行：据点交易"),
     ("stockpile", "运行：弹性物资囤货"),
+    ("eco_farm", "运行：生态农场 · 存仓"),
 ];
 
 // 游戏 → 静音: the game page's audio, muted for the whole app run (native/audio.m).
