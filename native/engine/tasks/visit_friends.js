@@ -124,7 +124,7 @@
     async run(t) {
       await E.park();
       const menu = await E.look();
-      const entry = E.find(menu.texts, /^好友$/);
+      const entry = await E.findText(menu, /^好友$/, E.MENU_RIGHT);
       if (!entry) E.fail('menu_without_好友');
       await E.click(...E.center(entry));
       const list = await E.waitFor('friends', { timeout: 10000 });

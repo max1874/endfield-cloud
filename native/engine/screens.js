@@ -4,7 +4,15 @@
   const E = window.__engine;
   if (!E || E.nav) return;
 
-  const MENU_LABELS = ['干员', '行动手册', '好友', '贵重品库', '采购中心', '地区建设', '装备加工', '档案库'];
+  // Menu anchors with their known OCR variants. macOS 27 full-frame OCR reads 干员 as
+  // 千员 and can miss most of the right column (run 20261029-203335-p99c read only 2 of
+  // the original 8 labels, so the menu stayed "unknown").
+  const MENU_ANCHORS = [['干员', '千员'], ['行动手册'], ['通行证'], ['好友'], ['贵重品库'], ['采购中心'],
+    ['地区建设'], ['装备加工'], ['档案库'], ['寻访'], ['探索等级'], ['工业计划'], ['工业简报']];
+  const MENU_LABELS = MENU_ANCHORS.flat();
+  // Menu entry columns, for E.findText: crops read the labels full-frame OCR misses.
+  E.MENU_LEFT = [0, 0.15, 0.25, 0.65];
+  E.MENU_RIGHT = [0.77, 0.2, 0.23, 0.7];
 
   E.screen('loading', look => look.has('LOADING'), 100);
   // The game's boot splashes (publisher, health and photosensitivity notices, age
@@ -21,7 +29,7 @@
   const TAP_HINT = /点击(确认|任意位置|空白处)/;
   const TAP_REGION = [0.15, 0.55, 0.7, 0.4];
   E.screen('tap_notice', look => look.has(TAP_HINT, TAP_REGION), 85);
-  E.screen('menu', look => MENU_LABELS.filter(label => look.has(label)).length >= 3, 80);
+  E.screen('menu', look => MENU_ANCHORS.filter(names => names.some(name => look.has(name))).length >= 4, 80);
 
   // ---- 获得奖励 ------------------------------------------------------------------
   // The shared reward screen: a row of item tiles (count printed on the tile, name
@@ -181,7 +189,7 @@
     async visit(t, label, fn) {
       await E.park();
       const menu = await E.look();
-      const entry = E.find(menu.texts, '地区建设');
+      const entry = await E.findText(menu, '地区建设', E.MENU_RIGHT);
       if (!entry) E.fail('menu_without_地区建设');
       await E.click(...E.center(entry));
       let region = await E.waitFor('region', { timeout: 10000 });
@@ -219,10 +227,9 @@
         for (let i = 0; i < 10; i++) {
           await E.park({ settle: 500 });
           const next = await E.look();
-          const moved = MENU_LABELS.some(label => {
-            const a = E.find(look.texts, label), b = E.find(next.texts, label);
-            return !a || !b || Math.hypot(a.x - b.x, a.y - b.y) > 0.004;
-          });
+          // Compare only labels read in both looks: a label OCR misreads is not movement.
+          const pairs = MENU_LABELS.map(label => [E.find(look.texts, label), E.find(next.texts, label)]).filter(([a, b]) => a && b);
+          const moved = pairs.length < 2 || pairs.some(([a, b]) => Math.hypot(a.x - b.x, a.y - b.y) > 0.004);
           look = next;
           if (!moved && next.screen === 'menu') return next;
         }

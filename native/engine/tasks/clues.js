@@ -39,11 +39,25 @@
   };
 
   // Clue cards visible on 赠予自有线索: name and own stock (null when unread; empty
-  // types are greyed out and their "0" does not OCR).
+  // types are greyed out and their "0" does not OCR). macOS 27 Vision never reads a lone
+  // "1" in the tight digits crop (run 20261029-203335-p99c: 0 of 6 votes) but reads it on
+  // the whole "自有库存 N" line, so that line is the fallback.
+  const readStockLine = async (frame, name) => {
+    for (const scale of [2, 1]) {
+      const texts = await E.ocr(frame, [name.x - 0.006, name.y + 0.055, 0.165, 0.04], { scale });
+      const hit = texts.find(t => /^\d+$/.test(t.text.trim()) && E.center(t)[0] > name.x + 0.1);
+      if (hit) return Number(hit.text.trim());
+    }
+    return null;
+  };
   async function readStock(look) {
     const cards = [];
-    for (const name of await E.findAllText(look, /的线索$/, CLUE_LIST))
-      cards.push({ name: name.text, at: E.center(name), stock: await E.readNumber(look.frame, [name.x + 0.125, name.y + 0.058, 0.025, 0.035]) });
+    for (const name of await E.findAllText(look, /的线索$/, CLUE_LIST)) {
+      const stock = await E.readNumber(look.frame, [name.x + 0.125, name.y + 0.058, 0.025, 0.035]) ??
+        await readStockLine(look.frame, name);
+      // A stray leading quote ("“环塔商会的线索") would not match the card on a later pass.
+      cards.push({ name: name.text.replace(/^[^\p{Script=Han}]+/u, ''), at: E.center(name), stock });
+    }
     return cards;
   }
 

@@ -7,6 +7,12 @@
   if (!E) return;
 
   const LIST = [0.75, 0.27, 0.12, 0.6];
+  // 日常 is the second handbook tab. Once another tab is selected, macOS 27 OCR reads it
+  // as "■常" (the calendar icon merged with 日) or not at all (run 20261029-203335-p99c),
+  // so its fixed position is the fallback. The selected tab is filled (255,239,0).
+  const DAILY_TAB = [624 / 1920, 246 / 1080];
+  const DAILY_TAB_FILL = [0.265, 0.205, 0.015, 0.02];
+  const dailySelected = frame => { const [r, g, b] = E.color(frame, DAILY_TAB_FILL); return r > 200 && g > 190 && b < 80; };
   const readActivity = async look => {
     const label = await E.findText(look, /活跃度/, [0.1, 0.65, 0.2, 0.25]);
     if (!label) E.fail('activity_label_not_found');
@@ -44,15 +50,17 @@
     async run(t) {
       await E.park();
       const menu = await E.look();
-      const entry = E.find(menu.texts, '行动手册');
+      const entry = await E.findText(menu, '行动手册', E.MENU_RIGHT);
       if (!entry) E.fail('menu_without_行动手册');
       await E.click(...E.center(entry));
       let look = await E.waitFor('handbook', { timeout: 10000 });
-      const tab = await E.findText(look, /日常$/, [0.25, 0.19, 0.5, 0.06]);
-      if (!tab) E.fail('handbook_without_日常_tab');
-      await E.click(...E.center(tab));
-      await E.sleep(800);
-      look = await E.waitFor('handbook');
+      if (!dailySelected(look.frame)) {
+        const tab = await E.findText(look, /(^|[^驻])日常$|^.常$/, [0.25, 0.19, 0.12, 0.06]);
+        await E.click(...(tab ? E.center(tab) : DAILY_TAB));
+        await E.sleep(800);
+        look = await E.waitFor('handbook');
+        if (!dailySelected(look.frame)) { await t.save(look.frame, 'daily-tab-not-selected'); E.fail('handbook_without_日常_tab'); }
+      }
       const before = await t.save(look.frame, 'daily-before');
       const activityBefore = await readActivity(look);
 

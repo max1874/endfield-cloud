@@ -20,7 +20,8 @@
   const LIKED_BATCH = 3;
   const OTHER_BATCH = 30;
   const PROMPTS = [0.6, 0.57, 0.3, 0.2];
-  const KIOSK = /联络台/;
+  // Vision reads 干 as 千/于 and 台 as 合 on some frames.
+  const KIOSK = /[干千于]员联络|联络[台合]/;
   // 干员联络: a 6-column card grid; each card has its 信赖度 under the portrait and a
   // yellow gift icon in its top-left corner when the operator has a gift for us.
   const CARD_X = [888, 1023, 1159, 1295, 1431, 1567];
@@ -210,13 +211,18 @@
       ({ to: at } = await step(90 + Math.max(-40, Math.min(40, off * 20)), 250, locate, at));
       await E.sleep(300);
     }
-    // Around the spot, coming back after each try.
-    for (const bearing of [45, 135, -45, -135, 0, 180]) {
-      if (await prompt()) return;
-      ({ to: at } = await step(bearing, 300, locate, at));
-      await E.sleep(300);
-      if (await prompt()) return;
-      ({ to: at } = await step(bearing + 180, 300, locate, at));
+    // The minimap fix can be a few px off here: runs 20261027-192412-3g3r and
+    // 20261029-203335-p99c ended ~4 px east of the kiosk, in the hall's north doorway,
+    // while the walk thought it was on the kiosk's column. Back south onto the prompt's
+    // row, then sweep it west and east in short steps (relative moves, so an offset in
+    // the fix does not matter).
+    ({ to: at } = await step(-90, 400, locate, at));
+    for (const [bearing, n] of [[180, 6], [0, 12]]) {
+      for (let i = 0; i < n; i++) {
+        if (await prompt()) return;
+        ({ to: at } = await step(bearing, 200, locate, at));
+        await E.sleep(300);
+      }
     }
     if (await prompt()) return;
     await t.save(await E.grab(), 'kiosk-not-reached');

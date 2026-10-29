@@ -7,6 +7,20 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 
 ## Follow-ups
 
+### macOS 27 fixes from run 20261029-203335-p99c — added 2026-10-29
+
+- **Trigger:** the next 每日全部 run on macOS 27 with these fixes (William's account; run
+  `20261029-203335-p99c` on v0.2.7: 7 of 11 tasks failed or timed out).
+- **Fixed offline, not yet seen live:** menu fingerprint (干员 read as 千员, right column
+  unread → 据点交易 timeout); 信用购物 name from a crop + one-glyph tolerance (棱/楼);
+  线索 stock "1" from the 自有库存 line; 日常 tab by its fill and position (read as ■常);
+  生态农场 from the 帝江号 map via its region card; kiosk sweep south of the doorway;
+  弹性物资 card click retried once, 1xxx prices that may be xxx read from the dialog.
+- **Check:** each task's verdict and frames; `*-click-missed` and `daily-tab-not-selected`
+  frames if they appear; the 武陵 market note listing dialog-read prices.
+- **Done when:** each of these tasks passes or is nothing_to_do once on macOS 27, or a
+  remaining failure gets its own item.
+
 ### Tester rerun on macOS 27 — added 2026-10-27
 
 - **Trigger:** Max authorizes sending v0.2.4 (or later) to the macOS 27 tester, whose run

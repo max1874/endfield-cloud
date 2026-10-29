@@ -64,9 +64,18 @@
   }
 
   async function openCard(t, label, card) {
-    await E.click(...card.at);
-    await E.park({ at: [0.5, 0.1], settle: 600 });
-    let look = await E.waitFor(['stock_buy', 'stock_sell'], { timeout: 8000 });
+    let look = null;
+    // The first card click after an Escape-closed dialog went unanswered (run
+    // 20261029-203335-p99c, 武陵), so a missed click is tried once more.
+    for (let attempt = 0; !look; attempt++) {
+      await E.click(...card.at);
+      await E.park({ at: [0.5, 0.1], settle: 600 });
+      look = await E.waitFor(['stock_buy', 'stock_sell'], { timeout: 6000 }).catch(async error => {
+        if (error.kind !== 'timeout' || attempt > 0 || !error.detail?.look) throw error;
+        await t.save(error.detail.look.frame, `${label}-click-missed`);
+        return null;
+      });
+    }
     if (look.screen === 'stock_sell') {
       const buySide = await E.findText(look, /^购买/, SIDE_TOGGLE);
       if (!buySide) E.fail(`${card.name}_sell_dialog_without_购买`, { look });
@@ -127,15 +136,20 @@
     await t.save(look.frame, `${tag}-market`);
     // The currency icon sits closer to a 3-digit price and can read as a leading 1
     // (619 vs 1619 tied, 2026-10-23). A price the list leaves unread is read from the
-    // card's 购买物资 dialog, which the purchase checks against anyway.
+    // card's 购买物资 dialog, which the purchase checks against anyway. So is a 1xxx
+    // price that may be a cheaper xxx (武侠电影货组 976 read as 1976, run
+    // 20261029-203335-p99c, which would have bought a 1451 card instead).
+    const listed = [...market.values()].map(c => c.price).filter(p => p != null);
+    const cheapest = listed.length ? Math.min(...listed) : Infinity;
+    const doubtful = p => p == null || (p >= 1000 && p < 2000 && p - 1000 < cheapest);
     for (const c of await readMarket(look) || []) {
-      if (market.get(c.name)?.price != null) continue;
+      if (!doubtful(market.get(c.name)?.price)) continue;
       const { dialog } = await openCard(t, `${tag}-price`, c);
       await E.key('Escape');
       await E.waitFor('stock_market', { timeout: 8000 });
       await E.park({ at: [0.5, 0.03], settle: 800 });
+      t.note(`${c.name}: price ${dialog.price} read from its dialog (list ${market.get(c.name)?.price ?? 'unread'})`);
       market.set(c.name, { ...c, price: dialog.price });
-      t.note(`${c.name}: price ${dialog.price} read from its dialog`);
     }
     look = await E.look();
     const cards = [...market.values()];
