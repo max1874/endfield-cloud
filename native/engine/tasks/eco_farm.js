@@ -33,30 +33,24 @@
 
   const OVERVIEW = [0.8, 0.88, 0.18, 0.08];
   const REGION_CARD = [0.8, 0.1, 0.2, 0.06];
+  const WULING_TAB = [0.74, 0.88, 0.14, 0.07];
   async function openArea(area) {
     await E.nav.to('world', null);
     await E.key('KeyM');
     let look = await E.waitFor('map', { timeout: 10000 });
-    let overview = await E.findText(look, '地区总览', OVERVIEW);
-    let region = null;
-    if (!overview) {
-      // The player is on the 帝江号 (operator_gifts teleports to its kiosk; run
-      // 20261029-203335-p99c): its map has no 地区总览, and its corner card names the
-      // region ("▸▸四号谷地"), as a region map's corner names the 帝江号 (screens.js openMap).
-      region = await E.findText(look, /(四号谷地|武陵)$/, REGION_CARD);
-      if (region) await E.click(...E.center(region));
-    }
-    for (let i = 0; !overview && i < 8; i++) {
+    // A region map opens the overview with 地区总览. The 帝江号 map has none (operator_gifts
+    // teleports to its kiosk; run 20261029-203335-p99c); its corner card naming the
+    // region ("▸▸武陵") opens the overview directly (run 20261030-113903-m7yt).
+    const entry = await E.findText(look, '地区总览', OVERVIEW) ?? await E.findText(look, /(四号谷地|武陵)$/, REGION_CARD);
+    if (!entry) E.fail('map_without_地区总览');
+    await E.click(...E.center(entry));
+    let wuling = null;
+    for (let i = 0; !wuling && i < 6; i++) {
       await E.sleep(800);
       look = await E.look();
-      overview = await E.findText(look, '地区总览', OVERVIEW);
+      wuling = await E.findText(look, /^武陵$/, WULING_TAB);
     }
-    if (!overview) E.fail(region ? `map_without_地区总览_after_${region.text}` : 'map_without_地区总览');
-    await E.click(...E.center(overview));
-    await E.sleep(2000);
-    look = await E.look();
-    const wuling = await E.findText(look, /^武陵$/, [0.74, 0.88, 0.14, 0.07]);
-    if (!wuling) E.fail('overview_without_武陵');
+    if (!wuling) E.fail(`overview_without_武陵_after_${entry.text}`);
     await E.click(...E.center(wuling));
     await E.sleep(2500);
     look = await E.look();
