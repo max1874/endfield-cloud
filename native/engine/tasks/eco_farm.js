@@ -34,6 +34,11 @@
   const OVERVIEW = [0.8, 0.88, 0.18, 0.08];
   const REGION_CARD = [0.8, 0.1, 0.2, 0.06];
   const WULING_TAB = [0.74, 0.88, 0.14, 0.07];
+  // Where the overview places each area, just above its label (the same spot within a
+  // few px in three runs, 2026-10-30). The labels are tilted and OCR misreads them
+  // (试陵城, 祀的面; run 20261030-130730-hsw8 found no 武陵城), so the area is clicked
+  // at its spot and the map title confirms the switch.
+  const AREA_AT = { '祀的画': [1676 / 1920, 262 / 1080], '武陵城': [800 / 1920, 440 / 1080] };
   async function openArea(area) {
     await E.nav.to('world', null);
     await E.key('KeyM');
@@ -53,12 +58,7 @@
     if (!wuling) E.fail(`overview_without_武陵_after_${entry.text}`);
     await E.click(...E.center(wuling));
     await E.sleep(2500);
-    look = await E.look();
-    // Full-frame OCR misses the tilted 武陵城 label; its crop reads it.
-    const label = await E.findText(look, area, [0.1, 0.1, 0.85, 0.75]);
-    if (!label) E.fail(`overview_without_${area}`);
-    // The label sits under its area; click just above the text.
-    const at = [label.x + label.w / 2, label.y - 0.012];
+    const at = AREA_AT[area];
     await E.click(...at);
     for (let i = 0; i < 10; i++) {
       await E.sleep(800);
