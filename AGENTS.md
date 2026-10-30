@@ -24,7 +24,7 @@ A task that cannot produce the record is not done.
 
 ## MaaEnd is reference only
 
-`~/Projects/Repo/endfield` is MaaEnd (AGPL-3.0). Read it to understand game flows,
+`~/Projects/Repo/MaaEnd` is MaaEnd (AGPL-3.0). Read it to understand game flows,
 UI strings and failure cases. Do not copy its code, pipeline JSON, images,
 coordinates or ROIs into this repository, and do not run it as a dependency.
 Recognition templates are captured from our own stream. One exception (Max,
