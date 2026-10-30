@@ -54,16 +54,25 @@
 
   const cards = async look => {
     const cards = [];
-    for (const row of ROWS) for (const name of await E.findAllText(look, /\S{2,}/, row)) {
-      const [cx, cy] = E.center(name);
-      const tag = await E.findText(look, /^-\d+%$/, [cx, cy - 0.27, 0.07, 0.07]);
-      // A bought card stays in place under a 售罄 overlay.
-      const soldOut = await E.findText(look, /售罄/, [cx - 0.07, cy - 0.16, 0.14, 0.08]) !== null;
-      cards.push({ name: name.text, off: tag ? Number(tag.text.slice(1, -1)) : 0, soldOut, at: [cx, cy - 0.15],
-        key: `${Math.round(cx * 100)}:${Math.round(cy * 100)}` });
+    for (const row of ROWS) {
+      // Names come from a crop of the name bar: macOS 27 full-frame OCR read 协议棱柱组 as
+      // 协议楼柱组 (confidence 0.3) where the crop read it right (run 20261029-203335-p99c).
+      const cropped = E.findAll(await E.ocr(look.frame, row, { scale: 2 }), /\S{2,}/, row);
+      for (const name of cropped.length ? cropped : await E.findAllText(look, /\S{2,}/, row)) {
+        const [cx, cy] = E.center(name);
+        const tag = await E.findText(look, /^-\d+%$/, [cx, cy - 0.27, 0.07, 0.07]);
+        // A bought card stays in place under a 售罄 overlay.
+        const soldOut = await E.findText(look, /售罄/, [cx - 0.07, cy - 0.16, 0.14, 0.08]) !== null;
+        cards.push({ name: name.text, off: tag ? Number(tag.text.slice(1, -1)) : 0, soldOut, at: [cx, cy - 0.15],
+          key: `${Math.round(cx * 100)}:${Math.round(cy * 100)}` });
+      }
     }
     return cards;
   };
+  // One differing character still names the same card: discount and price are checked
+  // again in the dialog, so a misread glyph cannot buy the wrong item.
+  const sameName = (a, b) => a === b || (!!a && !!b && a.length >= 3 && a.length === b.length &&
+    [...a].filter((c, i) => c !== [...b][i]).length <= 1);
   const wanted = card => !card.soldOut && (card.off === OFF || ALWAYS.test(card.name));
 
   // Wait for the shop list (seen twice in a row), confirming any reward on the way.
@@ -107,7 +116,7 @@
     await E.park({ at: [0.5, 0.03], settle: 600 });
     const look = await E.waitFor('credit_buy', { timeout: 8000 });
     const name = (await E.findText(look, /\S/, ITEM_NAME))?.text.replace(/^[^一-鿿]+/, '') || null;
-    if (name !== card.name) E.fail(`opened_${name}_not_${card.name}`);
+    if (!sameName(name, card.name)) E.fail(`opened_${name}_not_${card.name}`);
     const tag = E.find(look.texts, /^-\d+%$/, ITEM_OFF);
     if ((tag ? Number(tag.text.slice(1, -1)) : 0) !== card.off) E.fail(`${name}_dialog_discount_${tag?.text}_list_${card.off}`);
     // A lone digit ("8" at -99%) reads only in the full frame; the price is the
@@ -181,7 +190,7 @@
     async run(t) {
       await E.park();
       const menu = await E.look();
-      const entry = E.find(menu.texts, '采购中心');
+      const entry = await E.findText(menu, '采购中心', E.MENU_LEFT);
       if (!entry) E.fail('menu_without_采购中心');
       await E.click(...E.center(entry));
       let look = await E.waitFor(['shop', 'credit_shop'], { timeout: 10000 });
