@@ -58,12 +58,16 @@
     const label = await E.findText(look, area, [0.1, 0.1, 0.85, 0.75]);
     if (!label) E.fail(`overview_without_${area}`);
     // The label sits under its area; click just above the text.
-    await E.click(label.x + label.w / 2, label.y - 0.012);
+    const at = [label.x + label.w / 2, label.y - 0.012];
+    await E.click(...at);
     for (let i = 0; i < 10; i++) {
       await E.sleep(800);
       await E.park({ at: [0.5, 0.97], settle: 200 });
       look = await E.look();
       if (await E.findText(look, new RegExp(`/${area}`), TITLE)) return look;
+      // The click can go unanswered (run 20261030-125447-41v8 stayed on the overview);
+      // click again, but only while the overview still shows.
+      if (i % 3 === 2 && await E.findText(look, /^武陵$/, WULING_TAB)) await E.click(...at);
     }
     E.fail(`map_not_switched_to_${area}`);
   }
@@ -131,7 +135,11 @@
       await E.sleep(800);
       await E.park({ at: [0.5, 0.97], settle: 300 });
       look = await E.look();
-      if (!await E.findText(look, facility.name, PANEL_TITLE)) E.fail(`${facility.id}_panel_gone_after_store`);
+      if (!await E.findText(look, facility.name, PANEL_TITLE)) {
+        // The panel closed after a store once, leaving the area map (run 20261030-125404-skva).
+        await t.save(look.frame, `${facility.id}-panel-gone-${press}`);
+        look = await openPanel(t, facility);
+      }
       counts = await slots(look, facility);
     }
     const after = await t.save(look.frame, `${facility.id}-after`);
