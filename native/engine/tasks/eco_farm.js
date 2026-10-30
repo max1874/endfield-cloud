@@ -34,6 +34,7 @@
   const OVERVIEW = [0.8, 0.88, 0.18, 0.08];
   const REGION_CARD = [0.8, 0.1, 0.2, 0.06];
   const WULING_TAB = [0.74, 0.88, 0.14, 0.07];
+  const hanOnly = text => text.replace(/[^\p{Script=Han}]/gu, '');
   // Where the overview places each area, just above its label (the same spot within a
   // few px in three runs, 2026-10-30). The labels are tilted and OCR misreads them
   // (试陵城, 祀的面; run 20261030-130730-hsw8 found no 武陵城), so the area is clicked
@@ -64,7 +65,9 @@
       await E.sleep(800);
       await E.park({ at: [0.5, 0.97], settle: 200 });
       look = await E.look();
-      if (await E.findText(look, new RegExp(`/${area}`), TITLE)) return look;
+      // The title reads 武陵/祀画 for 武陵/祀的画 (run 20261030-125433-ydz3), and its slash
+      // may come back full-width (1/武陵／武陵城, run 20261030-130826-t9rm).
+      if (await E.findText(look, text => E.sameName(hanOnly(text.match(/\p{Script=Han}\s*[/／]\s*([^/／]+)$/u)?.[1] ?? ''), area), TITLE)) return look;
       // The click can go unanswered (run 20261030-125447-41v8 stayed on the overview);
       // click again, but only while the overview still shows.
       if (i % 3 === 2 && await E.findText(look, /^武陵$/, WULING_TAB)) await E.click(...at);
@@ -79,11 +82,25 @@
       await E.park({ at: [0.5, 0.97], settle: 1200 });
       map = await E.look();
     }
-    const icon = await E.match(map.frame, facility.template, facility.near, { step: facility.pan ? 2 : 1 });
+    let icon = await E.match(map.frame, facility.template, facility.near, { step: facility.pan ? 2 : 1 });
+    // The area map does not always open at the same spot: after the 祀的画 panels the
+    // 武陵城 icon was off the panned view (run 20261030-123647-lw8f, best 0.53). Pan a
+    // little further each way and look again.
+    const retries = facility.pan ? [[[0.5, 0.35], [0.5, 0.6]], [[0.5, 0.6], [0.5, 0.1]], [[0.5, 0.6], [0.5, 0.35]]] : [];
+    for (const drag of retries) {
+      if (icon.score >= 0.6) break;
+      await E.drag(...drag, { ms: 700 });
+      await E.park({ at: [0.5, 0.97], settle: 1200 });
+      map = await E.look();
+      icon = await E.match(map.frame, facility.template, facility.near, { step: 2 });
+    }
     t.note(`${facility.area}${facility.name} icon score ${icon.score.toFixed(2)} at ${icon.x.toFixed(3)},${icon.y.toFixed(3)}`);
     if (icon.score < 0.6) {
       await t.save(map.frame, `${facility.id}-map-without-icon`);
-      E.fail(`${facility.id}_icon_not_found_${icon.score.toFixed(2)}`);
+      // Not every account has built every facility: William's has no 武陵城 农植机
+      // marker anywhere on the panned map (run 20261030-124421-sy7g). The frame stays as
+      // evidence; the other facilities still run.
+      E.fail(`${facility.id}_icon_not_found_${icon.score.toFixed(2)}`, { missing: true });
     }
     await E.click(icon.x + icon.w / 2, icon.y + icon.h / 2);
     for (let i = 0; i < 6; i++) {
@@ -160,7 +177,15 @@
     start: 'world',
     async run(t) {
       const stored = [];
-      for (const facility of FACILITIES) if (await store(t, facility)) stored.push(`${facility.area}${facility.name}`);
+      for (const facility of FACILITIES) {
+        try {
+          if (await store(t, facility)) stored.push(`${facility.area}${facility.name}`);
+        } catch (error) {
+          if (!error?.detail?.missing) throw error;
+          t.note(`${facility.area}${facility.name}: not on the map (${error.message}), skipped`);
+          await E.nav.to('world', null);
+        }
+      }
       if (!stored.length) return t.skip('自动农植机 (祀的画, 武陵城) and 牧场 hold nothing');
       return t.pass(`stored ${stored.join(', ')} into the 武陵 warehouse`);
     }

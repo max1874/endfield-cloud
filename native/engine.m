@@ -2,6 +2,7 @@
 #import <WebKit/WebKit.h>
 #import <Vision/Vision.h>
 #import <CoreImage/CoreImage.h>
+#import <ImageIO/ImageIO.h>
 #import <objc/runtime.h>
 
 // Native services for the automation engine (native/engine/*.js). The engine runs in
@@ -66,9 +67,23 @@ static NSArray *RecognizeText(NSData *image, BOOL fast, BOOL digits, NSError **e
                                                          withInputParameters:@{kCIInputSaturationKey: @0}];
         handler = [[VNImageRequestHandler alloc] initWithCIImage:gray options:@{}];
     } else {
-        handler = [[VNImageRequestHandler alloc] initWithData:image options:@{}];
+        // Decode with ImageIO and hand Vision a CGImage: given the encoded data, macOS 27
+        // Vision kept failing every request with CRImageReaderError 1 (runs
+        // 20261030-103957-ho5k, 20261030-105454-u72i).
+        CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)image, NULL);
+        CGImageRef cgImage = source ? CGImageSourceCreateImageAtIndex(source, 0, NULL) : NULL;
+        if (source) CFRelease(source);
+        if (!cgImage) {
+            if (error) *error = [NSError errorWithDomain:@"endfield.ocr" code:1 userInfo:@{NSLocalizedDescriptionKey: @"image_decode_failed"}];
+            return @[];
+        }
+        handler = [[VNImageRequestHandler alloc] initWithCGImage:cgImage options:@{}];
+        CGImageRelease(cgImage);
     }
     [handler performRequests:@[request] error:error];
+    if (error && *error) {
+        fprintf(stderr, "engine ocr_failed bytes=%lu digits=%d %s\n", (unsigned long)image.length, digits, (*error).localizedDescription.UTF8String);
+    }
     NSMutableArray *texts = [NSMutableArray array];
     for (VNRecognizedTextObservation *observation in request.results) {
         VNRecognizedText *text = [observation topCandidates:1].firstObject;
@@ -114,6 +129,9 @@ static NSArray *RecognizeText(NSData *image, BOOL fast, BOOL digits, NSError **e
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             NSError *error = nil;
             NSArray *texts = RecognizeText(image, fast, digits, &error);
+            // Vision now and then fails a request it passes on a second try
+            // (CRImageReaderError 1, run 20261030-103957-ho5k).
+            if (error) { [NSThread sleepForTimeInterval:0.2]; error = nil; texts = RecognizeText(image, fast, digits, &error); }
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (error) reply(nil, error.localizedDescription);
                 else reply(@{@"texts": texts}, nil);
