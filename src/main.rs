@@ -206,6 +206,10 @@ fn main() {
             let check_update = MenuItem::with_id(app, "update-check", "检查更新", true, None::<&str>)?;
             let install_update = MenuItem::with_id(app, "update-install", "重启并更新", false, None::<&str>)?;
             update::setup(app.handle(), check_update.clone(), install_update.clone());
+            // Under About in the app menu, where macOS apps keep their updates.
+            if let Some(app_menu) = menu.items()?.first().and_then(|item| item.as_submenu()) {
+                app_menu.insert_items(&[&check_update, &install_update], 1)?;
+            }
             let sensitivity_1 = MenuItem::with_id(app, "sensitivity-1", "鼠标灵敏度 1×", true, None::<&str>)?;
             let sensitivity_2 = MenuItem::with_id(app, "sensitivity-2", "鼠标灵敏度 2×", true, None::<&str>)?;
             let sensitivity_4 = MenuItem::with_id(app, "sensitivity-4", "鼠标灵敏度 4×", true, None::<&str>)?;
@@ -213,7 +217,7 @@ fn main() {
             let sensitivity_16 = MenuItem::with_id(app, "sensitivity-16", "鼠标灵敏度 16×", true, None::<&str>)?;
             menu.append(&Submenu::with_items(
                 app, "游戏", true,
-                &[&reload, &home, &fullscreen, &mute, &check_update, &install_update, &sensitivity_1, &sensitivity_2, &sensitivity_4, &sensitivity_8, &sensitivity_16],
+                &[&reload, &home, &fullscreen, &mute, &sensitivity_1, &sensitivity_2, &sensitivity_4, &sensitivity_8, &sensitivity_16],
             )?)?;
             let automation = Submenu::new(app, "自动化", true)?;
             automation.append(&MenuItem::with_id(app, "engine-run-daily", "运行：每日全部", true, None::<&str>)?)?;
