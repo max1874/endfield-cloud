@@ -18,7 +18,7 @@
       await E.click(...MAIL);
       let look = await E.waitFor('mailbox', { timeout: 10000 });
       const before = await t.save(look.frame, 'mailbox-before');
-      const button = await E.findText(look, /^全部收取$/, CLAIM_ALL);
+      const button = await E.findText(look, /^全部收取$/, CLAIM_ALL, { assist: true });
       if (!button) E.fail('mailbox_without_全部收取');
       await E.click(...E.center(button));
       let reward = null;

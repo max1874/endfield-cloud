@@ -186,12 +186,12 @@
     async run(t) {
       await E.park();
       const menu = await E.look();
-      const entry = await E.findText(menu, '采购中心', E.MENU_LEFT);
+      const entry = await E.findText(menu, '采购中心', E.MENU_LEFT, { assist: true });
       if (!entry) E.fail('menu_without_采购中心');
       await E.click(...E.center(entry));
       let look = await E.waitFor(['shop', 'credit_shop'], { timeout: 10000 });
       if (look.screen !== 'credit_shop') {
-        const tab = await E.findText(look, /信用交易所$/, [0.6, 0.06, 0.2, 0.05]);
+        const tab = await E.findText(look, /信用交易所$/, [0.6, 0.06, 0.2, 0.05], { assist: '信用交易所' });
         if (!tab) E.fail('shop_without_信用交易所');
         await E.click(...E.center(tab));
         look = await E.waitFor('credit_shop', { timeout: 10000 });

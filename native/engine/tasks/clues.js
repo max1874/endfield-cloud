@@ -114,7 +114,7 @@
 
   async function giveExtras(t) {
     let look = await E.look();
-    let send = await E.findText(look, /^赠予$/, SIDE);
+    let send = await E.findText(look, /^赠予$/, SIDE, { assist: true });
     if (!send) {
       // The side buttons are evenly spaced (收集, 接收, 赠予, then 线索库 lower down), and
       // OCR misses 赠予 on some frames that show it (run 20261030-103957-ho5k).
@@ -191,13 +191,13 @@
     start: 'world',
     async run(t) {
       const nexus = await E.openControlNexus(t);
-      const room = await E.findText(nexus, /^会客室$/, ROOM_ON_MAP);
+      const room = await E.findText(nexus, /^会客室$/, ROOM_ON_MAP, { assist: true });
       if (!room) E.fail('nexus_without_会客室');
       await E.click(...E.center(room));
       let reception = await E.waitFor(['reception', 'exchange_done'], { timeout: 10000 });
       if (reception.screen === 'exchange_done') {
         const shown = await t.save(reception.frame, 'exchange-done');
-        const paid = await E.readNumber(reception.frame, [0.706, 0.305, 0.03, 0.045]);
+        const paid = await E.readNumber(reception.frame, [0.706, 0.305, 0.03, 0.045], { assist: true });
         await closeResult(reception);
         reception = await E.waitFor('reception', { timeout: 10000 });
         t.change({ what: '线索交流结束', paid, frames: [shown, await t.save(reception.frame, 'exchange-done-after')] });

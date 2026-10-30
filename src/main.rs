@@ -16,6 +16,9 @@ extern "C" {
     fn endfield_install_engine(webview: *mut std::ffi::c_void, source: *const std::ffi::c_char);
     fn endfield_engine_command(webview: *mut std::ffi::c_void, command: *const std::ffi::c_char);
     fn endfield_set_muted(webview: *mut std::ffi::c_void, muted: bool) -> std::ffi::c_ulong;
+    fn endfield_assist_has_key() -> bool;
+    fn endfield_assist_paste_key() -> bool;
+    fn endfield_assist_clear_key();
     #[cfg(debug_assertions)]
     fn endfield_dev_eval(
         webview: *mut std::ffi::c_void,
@@ -110,6 +113,22 @@ fn engine_command(window: &WebviewWindow, command: &str) -> tauri::Result<()> {
     window.with_webview(move |webview| unsafe {
         endfield_engine_command(webview.inner(), command.as_ptr());
     })
+}
+
+// 自动化 → 模型兜底: the key item says whether a key is set; `pasted` is the outcome of
+// the paste just made, if any.
+struct AssistKeyItem(MenuItem<tauri::Wry>);
+
+fn assist_key_label(pasted: Option<bool>) -> &'static str {
+    #[cfg(target_os = "macos")]
+    let has_key = unsafe { endfield_assist_has_key() };
+    #[cfg(not(target_os = "macos"))]
+    let has_key = false;
+    match (pasted, has_key) {
+        (Some(false), _) => "模型兜底：剪贴板里不是 DeepSeek Key",
+        (_, true) => "模型兜底：DeepSeek Key 已设置（粘贴可替换）",
+        _ => "模型兜底：粘贴 DeepSeek Key",
+    }
 }
 
 // Only record the origin: authentication query strings and fragments stay out of logs.
@@ -231,6 +250,13 @@ fn main() {
             automation.append(&MenuItem::with_id(app, "engine-pause", "接管（暂停运行）", true, None::<&str>)?)?;
             automation.append(&MenuItem::with_id(app, "engine-resume", "继续运行", true, None::<&str>)?)?;
             automation.append(&MenuItem::with_id(app, "engine-stop", "结束运行", true, Some("CmdOrCtrl+Shift+."))?)?;
+            automation.append(&PredefinedMenuItem::separator(app)?)?;
+            // Model assist (native/engine/core.js) runs on the user's own DeepSeek key.
+            let assist_key = MenuItem::with_id(app, "assist-key", assist_key_label(None), true, None::<&str>)?;
+            app.manage(AssistKeyItem(assist_key.clone()));
+            automation.append(&assist_key)?;
+            automation.append(&MenuItem::with_id(app, "assist-check", "模型兜底：自检", true, None::<&str>)?)?;
+            automation.append(&MenuItem::with_id(app, "assist-clear", "模型兜底：清除 Key", true, None::<&str>)?)?;
             menu.append(&automation)?;
             app.set_menu(menu)?;
             create_window(app.handle(), "game", CLOUD_URL.parse()?, None)?;
@@ -242,6 +268,19 @@ fn main() {
             match event.id().as_ref() {
                 "update-check" => { update::check_now(app); return; }
                 "update-install" => { update::request_install(app); return; }
+                #[cfg(target_os = "macos")]
+                "assist-key" | "assist-clear" => {
+                    let pasted = if event.id().as_ref() == "assist-key" {
+                        Some(unsafe { endfield_assist_paste_key() })
+                    } else {
+                        unsafe { endfield_assist_clear_key() };
+                        None
+                    };
+                    if let Err(error) = app.state::<AssistKeyItem>().0.set_text(assist_key_label(pasted)) {
+                        eprintln!("assist menu_failed {error}");
+                    }
+                    return;
+                }
                 _ => {}
             }
             let windows = app.webview_windows();
@@ -273,7 +312,7 @@ fn main() {
                     })
                 }
                 #[cfg(target_os = "macos")]
-                id if matches!(id, "engine-stop" | "engine-pause" | "engine-resume" | "engine-run-daily") || id.starts_with("engine-run:") => {
+                id if matches!(id, "engine-stop" | "engine-pause" | "engine-resume" | "engine-run-daily" | "assist-check") || id.starts_with("engine-run:") => {
                     // Task ids come from DAILY_TASKS and ENGINE_MENU_TASKS, never from the page.
                     // A run starts the cloud session when none is playing, and exits only that one.
                     let command = if id == "engine-run-daily" {
@@ -282,6 +321,8 @@ fn main() {
                         "window.__engine.pause('take_over')".to_string()
                     } else if id == "engine-resume" {
                         "window.__engine.resume()".to_string()
+                    } else if id == "assist-check" {
+                        "window.__engine.checkAssist()".to_string()
                     } else {
                         match id.strip_prefix("engine-run:") {
                             Some(task) => format!("window.__engine.run([{task:?}], {{ session: 'auto' }})"),

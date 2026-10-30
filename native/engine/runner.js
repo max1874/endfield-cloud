@@ -21,7 +21,7 @@
     constructor(runId, task, options) {
       this.task = task; this.options = options || {};
       this.dir = `${runId}/${task.id}`;
-      this.frames = []; this.changes = []; this.notes = []; this.index = 0;
+      this.frames = []; this.changes = []; this.notes = []; this.assists = []; this.index = 0;
       this.verdict = null; this.summary = '';
     }
     // Save a frame as evidence; returns its file name.
@@ -35,12 +35,17 @@
     // with the frames it was read from.
     change(record) { this.changes.push(record); E.log(`task=${this.task.id} change`, record); }
     note(text) { this.notes.push(text); E.log(`task=${this.task.id} note ${text}`); }
+    // A model answer the task went on with (core.js, model assist), and the image it saw.
+    async assist(record, shown) {
+      this.assists.push({ ...record, frame: await this.save(shown, `assist-${this.assists.length}`) });
+      this.note(`model assist: ${record.what}`);
+    }
     pass(summary) { this.verdict = 'passed'; this.summary = summary; return this; }
     // Nothing to do (e.g. no products ready); still requires evidence of the checked state.
     skip(summary) { this.verdict = 'nothing_to_do'; this.summary = summary; return this; }
     async write(extra = {}) {
       const result = { task: this.task.id, title: this.task.title, verdict: this.verdict, summary: this.summary,
-        changes: this.changes, notes: this.notes, frames: this.frames, options: this.options, ...extra };
+        changes: this.changes, assists: this.assists, notes: this.notes, frames: this.frames, options: this.options, ...extra };
       await bridge({ op: 'save', path: `${this.dir}/result.json`, text: JSON.stringify(result, null, 2) });
       return result;
     }
@@ -119,6 +124,34 @@
     });
   };
 
+  // 模型兜底 · 自检 (menu): the model picks and locates a label Vision reads on the
+  // current screen, and reads a number it reads, so a user sees their key and each kind
+  // of assist work before a run.
+  E.checkAssist = async () => {
+    if (E.running()) return;
+    show('模型兜底自检中…', 'done');
+    try {
+      const look = await E.look();
+      const label = look.texts.find(t => /^\p{Script=Han}{2,8}$/u.test(t.text));
+      const number = look.texts.find(t => /^\d{2,6}$/.test(t.text));
+      if (!label) return show('模型兜底自检：画面上没有可用的文字', 'done');
+      const around = (t, pad) => [t.x - pad, t.y - pad, t.w + 2 * pad, t.h + 2 * pad];
+      const near = hit => !!hit && Math.hypot(E.center(hit)[0] - E.center(label)[0], E.center(hit)[1] - E.center(label)[1]) < 0.03;
+      const started = performance.now();
+      const checks = [['编号选框', near(await E.llm.pick(look, label.text, around(label, 0.05)))],
+        ['直接定位', near(await E.llm.locate(look, label.text, around(label, 0.05)))]];
+      if (number) checks.push([`读数 ${number.text}`, await E.llm.number(look.frame, around(number, 0.01)) === Number(number.text)]);
+      const seconds = ((performance.now() - started) / 1000 / checks.length).toFixed(1);
+      const summary = checks.map(([name, ok]) => `${name}${ok ? '对' : '错'}`).join('，');
+      E.log(`assist check ${label.text} ${summary} seconds=${seconds}`);
+      // A run started meanwhile owns the bar.
+      if (!E.running()) show(`模型兜底自检「${label.text}」：${summary}，每次 ${seconds} 秒`, 'done');
+    } catch (error) {
+      const reason = { no_key: '还没有设置 DeepSeek Key', stream_not_ready: '先进入游戏' }[error?.message];
+      if (!E.running()) show(`模型兜底自检失败：${reason || error?.message || error}`, 'done');
+    }
+  };
+
   // Run `step`; when a pause interrupts it, hold until 继续 and run it again from the
   // start, or rethrow on 结束. `onPause` records the interruption.
   async function guarded(step, title, onPause) {
@@ -164,6 +197,7 @@
         const title = ids.length > 1 ? `${task.title}（${index + 1}/${ids.length}）` : task.title;
         show(`${title} · 运行中`, 'running');
         const started = Date.now();
+        E.assist = (record, shown) => t.assist(record, shown);
         try {
           // After a pause the task starts over from its start screen; changes it made
           // before stay recorded.
@@ -186,6 +220,9 @@
           }
           if (look) t.note(`last_screen=${look.screen} texts=${look.texts.slice(0, 12).map(x => x.text).join('|')}`);
         }
+        E.assist = null;
+        // A verdict that leaned on the model says so; its answers are in `assists`.
+        if (t.assists.length) t.summary += `（模型协助 ${t.assists.length} 处）`;
         const result = await t.write({ seconds: Math.round((Date.now() - started) / 1000) });
         results.push(result);
         E.log(`task=${id} verdict=${t.verdict} ${t.summary}`);

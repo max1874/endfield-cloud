@@ -50,7 +50,7 @@
     async run(t) {
       await E.park();
       const menu = await E.look();
-      const entry = await E.findText(menu, '行动手册', E.MENU_RIGHT);
+      const entry = await E.findText(menu, '行动手册', E.MENU_RIGHT, { assist: true });
       if (!entry) E.fail('menu_without_行动手册');
       await E.click(...E.center(entry));
       let look = await E.waitFor('handbook', { timeout: 10000 });

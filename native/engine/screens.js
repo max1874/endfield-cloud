@@ -89,7 +89,7 @@
     let map = await E.waitFor('map', { timeout: 10000 });
     if (!await E.findText(map, /总控中枢等级/, SHIP_MAP)) {
       // Another region's map: its corner lists the 帝江号.
-      const ship = await E.findText(map, /帝江号$/, [0.8, 0.1, 0.2, 0.06]);
+      const ship = await E.findText(map, /帝江号$/, [0.8, 0.1, 0.2, 0.06], { assist: '帝江号' });
       if (!ship) E.fail('map_without_帝江号');
       await E.click(...E.center(ship));
       await E.sleep(1500);
@@ -125,7 +125,7 @@
     await E.sleep(1500);
     look = await E.look();
     // The button's icon can read as trailing characters.
-    const jump = await E.findText(look, /^传送/, [0.85, 0.85, 0.15, 0.1]);
+    const jump = await E.findText(look, /^传送/, [0.85, 0.85, 0.15, 0.1], { assist: '传送' });
     if (!jump) { await t.save(look.frame, 'anchor-panel'); E.fail('anchor_panel_without_传送'); }
     await E.click(...E.center(jump));
     await E.waitFor('world', { timeout: 60000 });
@@ -165,7 +165,7 @@
       await E.click(...REGION_SWITCH);
       await E.sleep(1200);
       let look = await E.look();
-      const card = await E.findText(look, new RegExp(`${target}$`), [0.3, 0.28, 0.4, 0.06]);
+      const card = await E.findText(look, new RegExp(`${target}$`), [0.3, 0.28, 0.4, 0.06], { assist: target });
       if (!card) E.fail(`region_picker_without_${target}`);
       await E.click(...E.center(card));
       // The confirm dialog showed after more than 800 ms once (2026-10-23).
@@ -189,7 +189,7 @@
     async visit(t, label, fn) {
       await E.park();
       const menu = await E.look();
-      const entry = await E.findText(menu, '地区建设', E.MENU_RIGHT);
+      const entry = await E.findText(menu, '地区建设', E.MENU_RIGHT, { assist: true });
       if (!entry) E.fail('menu_without_地区建设');
       await E.click(...E.center(entry));
       let region = await E.waitFor('region', { timeout: 10000 });

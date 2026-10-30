@@ -111,7 +111,7 @@
       pick = await E.waitFor('visit_pick', { timeout: 5000 }).catch(() => null);
     }
     if (!pick) E.fail('visit_pick_not_reached');
-    const end = await E.findText(pick, '结束拜访', [0.75, 0.87, 0.25, 0.08]);
+    const end = await E.findText(pick, '结束拜访', [0.75, 0.87, 0.25, 0.08], { assist: true });
     if (!end) E.fail('visit_pick_without_结束拜访');
     await E.click(...E.center(end));
     await confirmIn(await E.waitFor('visit_end_ask', { timeout: 8000 }), [0.5, 0.6, 0.2, 0.08]);
@@ -124,7 +124,7 @@
     async run(t) {
       await E.park();
       const menu = await E.look();
-      const entry = await E.findText(menu, /^好友$/, E.MENU_RIGHT);
+      const entry = await E.findText(menu, /^好友$/, E.MENU_RIGHT, { assist: true });
       if (!entry) E.fail('menu_without_好友');
       await E.click(...E.center(entry));
       const list = await E.waitFor('friends', { timeout: 10000 });

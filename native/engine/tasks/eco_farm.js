@@ -138,7 +138,7 @@
     const rewards = [];
     for (let press = 0; counts.length; press++) {
       if (press >= 8) E.fail(`${facility.id}_still_holding_after_8_stores`);
-      const button = await E.findText(look, '存至武陵仓库', STORE);
+      const button = await E.findText(look, '存至武陵仓库', STORE, { assist: true });
       if (!button) E.fail(`${facility.id}_without_存至武陵仓库`);
       await E.click(...E.center(button));
       const reward = await E.waitFor(['reward'], { timeout: 8000 }).catch(async error => {

@@ -180,14 +180,20 @@
     if (!cache.has(key)) cache.set(key, E.ocr(look.frame, roi, { scale }));
     return cache.get(key);
   };
-  E.findText = async (look, pattern, roi) => {
+  // `assist` (true for a literal pattern, else the label text) asks the model when Vision
+  // finds nothing; see "model assist" below.
+  E.findText = async (look, pattern, roi, { assist } = {}) => {
     const hit = E.find(look.texts, pattern, roi);
     if (hit || !roi) return hit;
     for (const scale of [2, 3]) {
       const found = E.find(await cropTexts(look, roi, scale), pattern, roi);
       if (found) return found;
     }
-    return null;
+    if (!assist) return null;
+    const label = assist === true ? (typeof pattern === 'string' ? pattern : pattern.source.replace(/^\^|\$$/g, '')) : assist;
+    const found = await assisted(async () => await E.llm.pick(look, label, roi) ?? await E.llm.locate(look, label, roi));
+    if (found) await E.assist?.({ what: `found 「${label}」`, roi, at: E.center(found), via: found.via }, found.shown);
+    return found;
   };
   E.findAllText = async (look, pattern, roi) => {
     const hits = E.findAll(look.texts, pattern, roi);
@@ -224,18 +230,79 @@
   // One integer in a small region, such as an item count on a reward tile. Read with
   // the native `digits` mode (engine.m) at several scales and widths. A value counts
   // when it is the only one read at least twice, or when it has at least 3 votes and
-  // twice the runner-up (a widened crop once read "220" as "1220"); otherwise null.
-  E.readNumber = async (frame, [x, y, w, h]) => {
+  // twice the runner-up (a widened crop once read "220" as "1220"); otherwise null, or
+  // with `assist` the model's reading, if it is one Vision voted for or Vision read none.
+  E.readNumber = async (frame, [x, y, w, h], { assist = false } = {}) => {
     const votes = new Map();
     for (const scale of [3, 4, 6]) for (const k of [1, 1.5]) {
       const numbers = await E.readNumbers(frame, [x - w * (k - 1) / 2, y, w * k, h], { scale, digits: true });
       if (numbers.length === 1) votes.set(numbers[0], (votes.get(numbers[0]) || 0) + 1);
     }
-    const ranked = [...votes].sort((a, b) => b[1] - a[1]);
-    if (!ranked.length) return null;
-    const [[value, count], runnerUp] = ranked;
-    if (!runnerUp) return count >= 2 ? value : null;
-    return count >= 3 && count >= 2 * runnerUp[1] ? value : null;
+    const [[value, count] = [], runnerUp] = [...votes].sort((a, b) => b[1] - a[1]);
+    if (count >= 3 && count >= 2 * (runnerUp?.[1] ?? 0) || (count >= 2 && !runnerUp)) return value;
+    if (!assist) return null;
+    const roi = [x - w / 4, y, w * 1.5, h];
+    const read = await assisted(() => E.llm.number(frame, roi));
+    if (read === null || (votes.size && !votes.has(read))) return null;
+    await E.assist?.({ what: `read ${read}`, roi, vision: Object.fromEntries(votes) }, { canvas: E.crop(frame, roi, 3), time: frame.time });
+    return read;
+  };
+
+  // ---- model assist --------------------------------------------------------------
+  // When Vision misses a label or cannot settle a number, a vision model (DeepSeek, on
+  // the user's own key; without one nothing changes) answers about the frame. It only
+  // reads and finds, never chooses an action, and callers opt in ({ assist }) where a
+  // miss would fail the task; reads that choose a purchase (list prices) or that a
+  // purchase, trade or gift is checked against (receipt counts) stay on Vision. The
+  // runner records each answer with the image the model saw (E.assist).
+  // Offline on our frames (2026-10-30): crops read 48 of 50; given Vision's boxes
+  // numbered on the frame it picked 10 of 10; its own coordinates (0-1000) landed on
+  // 9 of 10 labels.
+  const assisted = async step => {
+    try { return await step(); } catch (error) {
+      if (error instanceof EngineError) throw error;
+      if (error?.message !== 'no_key') E.log(`llm_failed ${error?.message || error}`);
+      // A 接管 or 结束 during a failed call must still pause or stop.
+      E.check();
+      return null;
+    }
+  };
+  const ask = async (canvas, question) => {
+    const answer = (await bridge({ op: 'llm', image: canvas.toDataURL('image/jpeg', 0.9), question })).trim();
+    E.check();
+    return answer;
+  };
+  E.llm = {
+    async number(frame, roi) {
+      const answer = await ask(E.crop(frame, roi, 3), '这块游戏截图里有一个数字，是多少？只回答阿拉伯数字；看不清就回答“无”。');
+      return /^\d+$/.test(answer) ? Number(answer) : null;
+    },
+    // Vision's texts in the region, outlined and numbered on the frame; the model names one.
+    async pick(look, label, roi) {
+      const boxes = [...look.texts, ...await cropTexts(look, roi, 2)].filter(t => inside(t, roi));
+      if (!boxes.length) return null;
+      const canvas = E.crop(look.frame, [0, 0, 1, 1]), g = canvas.getContext('2d');
+      g.lineWidth = 2; g.font = 'bold 20px sans-serif'; g.textBaseline = 'bottom';
+      boxes.forEach((b, i) => {
+        const [bx, by] = [b.x * canvas.width, b.y * canvas.height], tag = String(i + 1);
+        g.strokeStyle = 'red'; g.strokeRect(bx, by, b.w * canvas.width, b.h * canvas.height);
+        g.fillStyle = 'red'; g.fillRect(bx, by - 22, g.measureText(tag).width + 6, 22);
+        g.fillStyle = 'white'; g.fillText(tag, bx + 3, by);
+      });
+      const answer = await ask(canvas, `这是一张游戏截图，每个文字区域都用红框框出，每个框左上方紧贴着红底白字的编号。写着「${label}」的是几号框？只回答编号；没有就回答 0。`);
+      const box = boxes[Number(answer.match(/\d+/)?.[0]) - 1];
+      return box ? { ...box, text: label, via: `pick ${answer}`, shown: { canvas, time: look.frame.time } } : null;
+    },
+    // The model's own coordinates, 0..1000 (or its <|box|> reply), kept only inside the region.
+    async locate(look, label, roi) {
+      const canvas = E.crop(look.frame, [0, 0, 1, 1]);
+      const answer = await ask(canvas, `这是一张 16:9 的游戏截图。文字「${label}」的中心在哪里？用 0 到 1000 的整数坐标回答（左上角 0,0，右下角 1000,1000），格式 x,y；看不到就回答“无”。`);
+      const n = (answer.match(/\d+/g) || []).map(v => Number(v) / 1000);
+      if (n.length < 2) return null;
+      const [x, y] = n.length >= 4 ? [(n[0] + n[2]) / 2, (n[1] + n[3]) / 2] : n;
+      const point = { text: label, confidence: 0, x: x - 0.005, y: y - 0.005, w: 0.01, h: 0.01 };
+      return inside(point, roi) ? { ...point, via: `locate ${answer}`, shown: { canvas, time: look.frame.time } } : null;
+    },
   };
 
   // ---- templates -----------------------------------------------------------------

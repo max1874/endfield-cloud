@@ -422,7 +422,7 @@
         const chosen = n > 1 ? await selectTile(first.x, n - 1) : probe;
         return { ...chosen, n, count: first.count, liked: shared };
       }
-      const clear = await E.findText(probe.look, '清空选择', [0.65, 0.88, 0.12, 0.06]);
+      const clear = await E.findText(probe.look, '清空选择', [0.65, 0.88, 0.12, 0.06], { assist: true });
       if (!clear) E.fail('gift_without_清空选择');
       await E.click(...E.center(clear));
       await E.sleep(600);
@@ -436,7 +436,7 @@
   // 离开 (or 暂时离开 when the operator offers a gift), then the farewell line.
   async function leaveTalk(talkLook) {
     // The option's icon can read as a leading letter ("G离开").
-    const leave = await E.findText(talkLook, /^\W?\w?\s?(暂时)?离开$/, [0.75, 0.65, 0.22, 0.12]);
+    const leave = await E.findText(talkLook, /^\W?\w?\s?(暂时)?离开$/, [0.75, 0.65, 0.22, 0.12], { assist: '离开' });
     if (!leave) E.fail('talk_without_离开');
     await E.click(...E.center(leave));
     for (let i = 0; i < 5; i++) {
@@ -548,7 +548,7 @@
           if (!(r > 190 && g > 180 && b < 90)) { await t.save(picked.frame, 'selection'); E.fail(`card_${card.name}_not_selected`); }
         }
         await t.save(picked.frame, `round${round}-selection`);
-        const confirm = await E.findText(picked, '确认联络', [0.7, 0.78, 0.2, 0.06]);
+        const confirm = await E.findText(picked, '确认联络', [0.7, 0.78, 0.2, 0.06], { assist: true });
         if (!confirm) E.fail('contact_without_确认联络');
         await E.click(...E.center(confirm));
         await E.waitFor('world', { timeout: 10000 });

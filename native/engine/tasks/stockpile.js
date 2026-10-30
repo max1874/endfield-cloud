@@ -79,7 +79,7 @@
       });
     }
     if (look.screen === 'stock_sell') {
-      const buySide = await E.findText(look, /^购买/, SIDE_TOGGLE);
+      const buySide = await E.findText(look, /^购买/, SIDE_TOGGLE, { assist: '购买' });
       if (!buySide) E.fail(`${card.name}_sell_dialog_without_购买`, { look });
       await E.click(...E.center(buySide));
       await E.park({ at: [0.5, 0.1], settle: 600 });

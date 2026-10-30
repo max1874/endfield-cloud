@@ -8,8 +8,9 @@
 // Native services for the automation engine (native/engine/*.js). The engine runs in
 // its own content world: it shares the DOM with the cloud page, so its input events
 // reach the SDK, but page scripts cannot see or call it. This bridge gives it OCR,
-// evidence storage (also read back, for state kept across runs) and logging; it never
-// acts on the game itself.
+// questions to a vision model (model assist, with the user's own key), evidence storage
+// (also read back, for state kept across runs) and logging; it never acts on the game
+// itself.
 
 extern void endfield_update_install(void);
 
@@ -26,6 +27,66 @@ static BOOL IsCloudURL(NSURL *url) {
 static NSURL *AutomationRoot(void) {
     NSURL *base = [NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask].firstObject;
     return [[base URLByAppendingPathComponent:@"local.endfield.cloud.prototype/automation" isDirectory:YES] URLByStandardizingPath];
+}
+
+// The user's own DeepSeek key for model assist (core.js), pasted from the 自动化 menu.
+// It sits beside the automation root, outside any path the engine can save or load.
+static NSURL *AssistKeyURL(void) {
+    return [AutomationRoot().URLByDeletingLastPathComponent URLByAppendingPathComponent:@"deepseek-key"];
+}
+
+static NSString *AssistKey(void) {
+    NSString *key = [NSString stringWithContentsOfURL:AssistKeyURL() encoding:NSUTF8StringEncoding error:nil];
+    return [key stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+}
+
+bool endfield_assist_has_key(void) { return AssistKey().length > 0; }
+
+bool endfield_assist_paste_key(void) {
+    NSString *key = [[NSPasteboard.generalPasteboard stringForType:NSPasteboardTypeString]
+        stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (!key || [key rangeOfString:@"^sk-[A-Za-z0-9]{20,}$" options:NSRegularExpressionSearch].location == NSNotFound) return false;
+    NSData *data = [key dataUsingEncoding:NSUTF8StringEncoding];
+    return [NSFileManager.defaultManager createFileAtPath:AssistKeyURL().path contents:data
+                                               attributes:@{NSFilePosixPermissions: @0600}];
+}
+
+void endfield_assist_clear_key(void) { [NSFileManager.defaultManager removeItemAtURL:AssistKeyURL() error:nil]; }
+
+// One question about one image to DeepSeek's vision model; replies with its answer text.
+// Thinking is off: with it on, answers took 1.5-3.5 s and often came as explanations
+// (offline eval on our frames, 2026-10-30).
+static void AskModel(NSString *image, NSString *question, void (^reply)(id, NSString *)) {
+    NSString *key = AssistKey();
+    if (!key.length) { reply(nil, @"no_key"); return; }
+    NSDictionary *payload = @{@"model": @"deepseek-v4-flash-vision-exp", @"temperature": @0, @"max_tokens": @200,
+        @"thinking": @{@"type": @"disabled"},
+        @"messages": @[@{@"role": @"user", @"content": @[
+            @{@"type": @"image_url", @"image_url": @{@"url": image}}, @{@"type": @"text", @"text": question}]}]};
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"https://api.deepseek.com/chat/completions"]];
+    request.HTTPMethod = @"POST";
+    request.timeoutInterval = 30;
+    [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    [request setValue:[@"Bearer " stringByAppendingString:key] forHTTPHeaderField:@"Authorization"];
+    request.HTTPBody = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
+    NSDate *start = NSDate.date;
+    [[NSURLSession.sharedSession dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        id json = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+        if (![json isKindOfClass:NSDictionary.class]) json = nil;
+        id choices = json[@"choices"];
+        id first = [choices isKindOfClass:NSArray.class] && [choices count] ? choices[0] : nil;
+        id message = [first isKindOfClass:NSDictionary.class] ? first[@"message"] : nil;
+        id content = [message isKindOfClass:NSDictionary.class] ? message[@"content"] : nil;
+        id usage = json[@"usage"];
+        id tokens = [usage isKindOfClass:NSDictionary.class] ? usage[@"total_tokens"] : nil;
+        long status = [response isKindOfClass:NSHTTPURLResponse.class] ? ((NSHTTPURLResponse *)response).statusCode : 0;
+        fprintf(stderr, "engine llm status=%ld seconds=%.2f tokens=%s\n", status, -start.timeIntervalSinceNow,
+                ([tokens description] ?: @"-").UTF8String);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if ([content isKindOfClass:NSString.class]) reply(content, nil);
+            else reply(nil, error ? error.localizedDescription : [NSString stringWithFormat:@"llm_http_%ld", status]);
+        });
+    }] resume];
 }
 
 // Resolve an engine-supplied relative path under the automation root, or nil.
@@ -137,6 +198,11 @@ static NSArray *RecognizeText(NSData *image, BOOL fast, BOOL digits, NSError **e
                 else reply(@{@"texts": texts}, nil);
             });
         });
+    } else if ([op isEqualToString:@"llm"]) {
+        NSString *image = body[@"image"], *question = body[@"question"];
+        if (![image isKindOfClass:NSString.class] || ![image hasPrefix:@"data:image/"] || image.length > 8 * 1024 * 1024 ||
+            ![question isKindOfClass:NSString.class] || question.length > 2000) { reply(nil, @"bad_llm"); return; }
+        AskModel(image, question, reply);
     } else if ([op isEqualToString:@"save"]) {
         NSURL *url = ArtifactURL(body[@"path"]);
         NSData *data = [body[@"image"] isKindOfClass:NSString.class] ? DecodeImage(body[@"image"])
