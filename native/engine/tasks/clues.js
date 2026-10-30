@@ -114,8 +114,15 @@
 
   async function giveExtras(t) {
     let look = await E.look();
-    const send = await E.findText(look, /^赠予$/, SIDE);
-    if (!send) E.fail('reception_without_赠予');
+    let send = await E.findText(look, /^赠予$/, SIDE);
+    if (!send) {
+      // The side buttons are evenly spaced (收集, 接收, 赠予, then 线索库 lower down), and
+      // OCR misses 赠予 on some frames that show it (run 20261030-103957-ho5k).
+      const collect = await E.findText(look, /^收集$/, SIDE), receive = await E.findText(look, /^接收$/, SIDE);
+      if (!collect || !receive) E.fail('reception_without_赠予');
+      send = { ...receive, y: receive.y + (receive.y - collect.y) };
+      t.note('赠予 unread; clicked one button below 接收');
+    }
     await E.click(...E.center(send));
     await E.waitFor('clue_send', { timeout: 10000 });
     await E.park({ at: [0.5, 0.03], settle: 1000 });

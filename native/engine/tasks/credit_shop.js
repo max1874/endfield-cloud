@@ -69,10 +69,6 @@
     }
     return cards;
   };
-  // One differing character still names the same card: discount and price are checked
-  // again in the dialog, so a misread glyph cannot buy the wrong item.
-  const sameName = (a, b) => a === b || (!!a && !!b && a.length >= 3 && a.length === b.length &&
-    [...a].filter((c, i) => c !== [...b][i]).length <= 1);
   const wanted = card => !card.soldOut && (card.off === OFF || ALWAYS.test(card.name));
 
   // Wait for the shop list (seen twice in a row), confirming any reward on the way.
@@ -116,7 +112,7 @@
     await E.park({ at: [0.5, 0.03], settle: 600 });
     const look = await E.waitFor('credit_buy', { timeout: 8000 });
     const name = (await E.findText(look, /\S/, ITEM_NAME))?.text.replace(/^[^一-鿿]+/, '') || null;
-    if (!sameName(name, card.name)) E.fail(`opened_${name}_not_${card.name}`);
+    if (!E.sameName(name, card.name)) E.fail(`opened_${name}_not_${card.name}`);
     const tag = E.find(look.texts, /^-\d+%$/, ITEM_OFF);
     if ((tag ? Number(tag.text.slice(1, -1)) : 0) !== card.off) E.fail(`${name}_dialog_discount_${tag?.text}_list_${card.off}`);
     // A lone digit ("8" at -99%) reads only in the full frame; the price is the

@@ -35,7 +35,14 @@
   const GIFT_CLOSE = px(1848, 42);
 
   E.screen('contact', look => look.has(/[干千于]员联络$/, [0.12, 0.16, 0.12, 0.05]) && look.has(/确认联络|未选择/, [0.7, 0.78, 0.2, 0.06]), 76);
-  E.screen('operator_talk', look => look.has(/赠送礼物|收下礼物/, [0.75, 0.55, 0.22, 0.15]) && look.has(/离开/, [0.75, 0.65, 0.22, 0.12]), 74);
+  // Full-frame OCR can miss the choice pills while the thank-you line shows under them
+  // (run 20261030-112453-3d8r); with the 信赖度 dial up, crops of the pills decide.
+  const TALK_GIFT = [0.75, 0.55, 0.22, 0.15], TALK_LEAVE = [0.75, 0.65, 0.22, 0.12];
+  E.screen('operator_talk', async look => {
+    if (look.has(/赠送礼物|收下礼物/, TALK_GIFT) && look.has(/离开/, TALK_LEAVE)) return true;
+    if (!look.has(/信赖度/, [0.75, 0.3, 0.22, 0.12])) return false;
+    return !!await E.findText(look, /赠送礼物|收下礼物/, TALK_GIFT) && !!await E.findText(look, /离开/, TALK_LEAVE);
+  }, 74);
   // A spoken line: the speaker's name and the line at the bottom, waiting for a click.
   // Its corner shows an ESC hint too, which the world screen keys on.
   E.screen('talk_line', look => look.has(/[\u4e00-\u9fff]/, [0.42, 0.79, 0.16, 0.05]) && look.has(/\S{6,}/, [0.08, 0.85, 0.84, 0.07]), 73);
@@ -143,14 +150,21 @@
   // Move toward `bearing` for `hold` ms; `where()` reads the position (any units with
   // y south) before and after, and the move updates the camera heading. Returns the
   // new position and the distance moved.
+  // With the heading unknown, W alone kept walking into the wall the player faced after
+  // a talk (run 20261030-113544-tcv6: 25 steps, 0 px), so a probe that does not move
+  // tries S, A and D next.
+  const PROBES = [MOVES[0], MOVES[4], MOVES[2], MOVES[6]];
+  let probe = 0;
   async function step(bearing, hold, where, from) {
-    const [angle, keys] = cameraHeading === null ? MOVES[0]
+    const unknown = cameraHeading === null;
+    const [angle, keys] = unknown ? PROBES[probe % PROBES.length]
       : MOVES.reduce((best, m) => Math.abs(wrap(cameraHeading + m[0] - bearing)) < Math.abs(wrap(cameraHeading + best[0] - bearing)) ? m : best);
     await press(keys, hold);
     await E.sleep(250);
     const to = await where(from);
     const moved = Math.hypot(to.x - from.x, to.y - from.y);
     if (moved >= 1.5) cameraHeading = wrap(Math.atan2(-(to.y - from.y), to.x - from.x) * 180 / Math.PI - angle);
+    else if (unknown) probe++;
     return { to, moved };
   }
 
@@ -466,9 +480,17 @@
     if (!confirm) E.fail('batch_without_确认赠送');
     await E.click(...E.center(confirm));
     await E.sleep(2500);
-    // The thank-you line, then the choices again.
-    await E.click(0.5, 0.6);
-    talkLook = await E.waitFor('operator_talk', { timeout: 8000 });
+    // The thank-you line, then the choices again. A click while the line still types
+    // out only completes it (run 20261030-112453-3d8r timed out on the line), so click
+    // until the choices are back.
+    talkLook = null;
+    for (let i = 0; i < 6 && !talkLook; i++) {
+      await E.click(0.5, 0.6);
+      talkLook = await E.waitFor('operator_talk', { timeout: 3000 }).catch(error => {
+        if (error.kind !== 'timeout' || i === 5) throw error;
+        return null;
+      });
+    }
     const after = await trustOf(talkLook);
     const frame = await t.save(talkLook.frame, `op${index}-after`);
     t.change({ what: `${name} ← ${batch.n} ${batch.gift}${batch.liked.length ? ` (likes ${batch.liked.join('、')})` : ''}`,

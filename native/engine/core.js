@@ -155,13 +155,22 @@
   E.ocr = async (frame, roi = [0, 0, 1, 1], { scale = 1, fast = false, digits = false } = {}) => {
     const canvas = E.crop(frame, roi, scale);
     const image = roi[2] * roi[3] > 0.25 ? canvas.toDataURL('image/jpeg', 0.92) : canvas.toDataURL('image/png');
-    const { texts } = await bridge({ op: 'ocr', image, fast, digits });
+    // Vision occasionally fails a request outright ("TextRecognition.CRImageReaderError
+    // error 1", run 20261030-103957-ho5k); the same image reads on a retry.
+    let texts;
+    for (let attempt = 0; ; attempt++) {
+      try { ({ texts } = await bridge({ op: 'ocr', image, fast, digits })); break; } catch (error) {
+        if (attempt >= 2) throw error;
+        E.log(`ocr retry ${attempt + 1}: ${error?.message || error}`);
+        await E.sleep(300 * (attempt + 1));
+      }
+    }
     E.check();
     return texts.map(t => ({ ...t, x: roi[0] + t.x * roi[2], y: roi[1] + t.y * roi[3], w: t.w * roi[2], h: t.h * roi[3] }));
   };
   const inside = (t, roi) => !roi || (t.x + t.w / 2 >= roi[0] && t.x + t.w / 2 <= roi[0] + roi[2] &&
     t.y + t.h / 2 >= roi[1] && t.y + t.h / 2 <= roi[1] + roi[3]);
-  const matches = (text, pattern) => pattern instanceof RegExp ? pattern.test(text) : text.includes(pattern);
+  const matches = (text, pattern) => typeof pattern === 'function' ? pattern(text) : pattern instanceof RegExp ? pattern.test(text) : text.includes(pattern);
   E.find = (texts, pattern, roi) => texts.find(t => inside(t, roi) && matches(t.text, pattern)) || null;
   E.findAll = (texts, pattern, roi) => texts.filter(t => inside(t, roi) && matches(t.text, pattern));
   // Full-frame OCR misses pill labels that crops read (macOS 27 run 20261026-210309-2ptr; Max's 2026-10-26 传送 miss).
@@ -190,6 +199,23 @@
     return [];
   };
   E.center = t => [t.x + t.w / 2, t.y + t.h / 2];
+  // Item names read in two places name the same item when they differ by at most one
+  // glyph (substituted, dropped or added): macOS 27 OCR read 棱 as 楼, 谷 as 合 and
+  // dropped the 嵌 of 嵌晶玉 (runs 20261029-203335-p99c, 20261030-113544-tcv6). Callers
+  // check price or discount again, so a misread cannot buy the wrong item.
+  E.sameName = (a, b) => {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    const x = [...a], y = [...b];
+    if (Math.min(x.length, y.length) < 2 || Math.abs(x.length - y.length) > 1) return false;
+    let i = 0, j = 0, edits = 0;
+    while (i < x.length && j < y.length) {
+      if (x[i] === y[j]) { i++; j++; continue; }
+      if (++edits > 1) return false;
+      if (x.length > y.length) i++; else if (y.length > x.length) j++; else { i++; j++; }
+    }
+    return edits + (x.length - i) + (y.length - j) <= 1;
+  };
   // Integers in a region, read with OCR (thousands separators and spaces dropped).
   E.readNumbers = async (frame, roi, options) => {
     const texts = await E.ocr(frame, roi, { scale: 2, ...options });

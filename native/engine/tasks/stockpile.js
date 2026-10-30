@@ -86,7 +86,7 @@
       look = await E.waitFor('stock_buy', { timeout: 8000 });
     }
     const dialog = await readDialog(look);
-    if (dialog.name !== card.name) E.fail(`opened_${dialog.name}_not_${card.name}`);
+    if (!E.sameName(dialog.name, card.name)) E.fail(`opened_${dialog.name}_not_${card.name}`);
     return { look, dialog };
   }
 
@@ -121,6 +121,9 @@
 
     // Collect the whole 市场 (it may need more than one scroll).
     const market = new Map();
+    // One card can read as two names across looks (息壤桥梁货组 and 息壤杯梁货组, run
+    // 20261030-123647-lw8f); a name one glyph off an earlier one is the same card.
+    const keyOf = name => [...market.keys()].find(k => E.sameName(k, name)) ?? name;
     let shown = null;
     for (let i = 0; i < 4; i++) {
       look = await scroll();
@@ -129,7 +132,7 @@
       const fresh = cards.filter(c => !market.has(c.name));
       // A frame taken mid-scroll can miss a price; never let it replace one read
       // (冬虫夏笋货组 619 ended up unread, 2026-10-23).
-      for (const c of cards) if (market.get(c.name)?.price == null) market.set(c.name, c);
+      for (const c of cards) { const k = keyOf(c.name); if (market.get(k)?.price == null) market.set(k, { ...c, name: k, price: c.price ?? market.get(k)?.price ?? null }); }
       shown = look;
       if (i > 0 && !fresh.length) break;
     }
@@ -145,13 +148,14 @@
     const cheapest = listed.length ? Math.min(...listed) : Infinity;
     const doubtful = p => p == null || (p >= 1000 && p < 2000 && p - 1000 < cheapest);
     for (const c of await readMarket(look) || []) {
-      if (!doubtful(market.get(c.name)?.price)) continue;
+      const k = keyOf(c.name);
+      if (!doubtful(market.get(k)?.price)) continue;
       const { dialog } = await openCard(t, `${tag}-price`, c);
       await E.key('Escape');
       await E.waitFor('stock_market', { timeout: 8000 });
       await E.park({ at: [0.5, 0.03], settle: 800 });
-      t.note(`${c.name}: price ${dialog.price} read from its dialog (list ${market.get(c.name)?.price ?? 'unread'})`);
-      market.set(c.name, { ...c, price: dialog.price });
+      t.note(`${k}: price ${dialog.price} read from its dialog (list ${market.get(k)?.price ?? 'unread'})`);
+      market.set(k, { ...c, name: k, price: dialog.price ?? market.get(k)?.price ?? null });
     }
     look = await E.look();
     const cards = [...market.values()];
@@ -160,7 +164,7 @@
     if (cards.some(c => c.price === null)) E.fail(`${region}_price_unread_${cards.filter(c => c.price === null).map(c => c.name).join('_')}`);
     const pick = cards.reduce((a, b) => (b.price < a.price ? b : a));
     // Card positions come from the last look that showed 市场; the pick must be on it.
-    const visible = (await readMarket(look) || []).find(c => c.name === pick.name);
+    const visible = (await readMarket(look) || []).find(c => E.sameName(c.name, pick.name));
     if (!visible) E.fail(`${pick.name}_not_on_screen`);
 
     const { dialog } = await openCard(t, tag, visible);
@@ -192,7 +196,7 @@
       }
     }
     // 购买成功 shows the goods and the count bought.
-    const got = receipt?.items.find(item => item.name === pick.name);
+    const got = receipt?.items.find(item => E.sameName(item.name, pick.name));
     if (!got || got.count !== now.quantity) E.fail(`${pick.name}_receipt_${JSON.stringify(receipt?.items)}`);
     const left = quota(after);
     if (!left) E.fail(`${region}_quota_unread_after`);
@@ -205,9 +209,9 @@
     }
     await t.save(after.frame, `${tag}-owned-list`);
     // A 市场 card opens 购买物资 directly; the 当前拥有 one opens its 出售 side.
-    let again = (await readMarket(after) || []).find(c => c.name === pick.name);
+    let again = (await readMarket(after) || []).find(c => E.sameName(c.name, pick.name));
     if (!again) {
-      const name = (await E.findAllText(after, /货组$/, [0.05, 0.23, 0.85, 0.74])).find(n => n.text === pick.name);
+      const name = (await E.findAllText(after, /货组$/, [0.05, 0.23, 0.85, 0.74])).find(n => E.sameName(n.text, pick.name));
       if (!name) E.fail(`${pick.name}_not_on_screen_after`);
       again = { name: pick.name, at: [E.center(name)[0], name.y - 0.15] };
     }
