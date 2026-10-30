@@ -211,6 +211,14 @@
       ({ to: at } = await step(90 + Math.max(-40, Math.min(40, off * 20)), 250, locate, at));
       await E.sleep(300);
     }
+    // Around the spot, coming back after each try.
+    for (const bearing of [45, 135, -45, -135, 0, 180]) {
+      if (await prompt()) return;
+      ({ to: at } = await step(bearing, 300, locate, at));
+      await E.sleep(300);
+      if (await prompt()) return;
+      ({ to: at } = await step(bearing + 180, 300, locate, at));
+    }
     // The minimap fix can be a few px off here: runs 20261027-192412-3g3r and
     // 20261029-203335-p99c ended ~4 px east of the kiosk, in the hall's north doorway,
     // while the walk thought it was on the kiosk's column. Back south onto the prompt's

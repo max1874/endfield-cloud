@@ -66,12 +66,14 @@
   async function openCard(t, label, card) {
     let look = null;
     // The first card click after an Escape-closed dialog went unanswered (run
-    // 20261029-203335-p99c, 武陵), so a missed click is tried once more.
+    // 20261029-203335-p99c, 武陵), so a missed click is tried once more, but only while
+    // the market is still showing: a dialog seen once but not yet stable must not be
+    // clicked into.
     for (let attempt = 0; !look; attempt++) {
       await E.click(...card.at);
       await E.park({ at: [0.5, 0.1], settle: 600 });
       look = await E.waitFor(['stock_buy', 'stock_sell'], { timeout: 6000 }).catch(async error => {
-        if (error.kind !== 'timeout' || attempt > 0 || !error.detail?.look) throw error;
+        if (error.kind !== 'timeout' || attempt > 0 || error.detail?.look?.screen !== 'stock_market') throw error;
         await t.save(error.detail.look.frame, `${label}-click-missed`);
         return null;
       });
