@@ -275,8 +275,8 @@ fn main() {
                 #[cfg(target_os = "macos")]
                 id if matches!(id, "engine-stop" | "engine-pause" | "engine-resume" | "engine-run-daily") || id.starts_with("engine-run:") => {
                     // Task ids come from DAILY_TASKS and ENGINE_MENU_TASKS, never from the page.
+                    // A run starts the cloud session when none is playing, and exits only that one.
                     let command = if id == "engine-run-daily" {
-                        // Starts the cloud session when none is playing, and exits only that one.
                         format!("window.__engine.run({DAILY_TASKS:?}, {{ session: 'auto' }})")
                     } else if id == "engine-pause" {
                         "window.__engine.pause('take_over')".to_string()
@@ -284,7 +284,7 @@ fn main() {
                         "window.__engine.resume()".to_string()
                     } else {
                         match id.strip_prefix("engine-run:") {
-                            Some(task) => format!("window.__engine.run([{task:?}])"),
+                            Some(task) => format!("window.__engine.run([{task:?}], {{ session: 'auto' }})"),
                             None => "window.__engine.stop('stopped_by_menu')".to_string(),
                         }
                     };
