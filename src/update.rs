@@ -51,11 +51,14 @@ pub fn setup(app: &AppHandle, check: MenuItem<tauri::Wry>, install: MenuItem<tau
         return;
     }
     let app = app.clone();
+    // Every 10 minutes, so a release shows its 重启更新 bar without a click on 检查更新
+    // (Max 2026-10-31; it took up to 6 h before). Each check fetches only latest.json,
+    // and none runs once an update is downloaded.
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_secs(30)).await;
         loop {
             check_now(&app);
-            tokio::time::sleep(Duration::from_secs(6 * 60 * 60)).await;
+            tokio::time::sleep(Duration::from_secs(10 * 60)).await;
         }
     });
 }
@@ -88,7 +91,7 @@ async fn check_and_download(app: &AppHandle) {
         Ok(Some(update)) => update,
         Ok(None) => {
             eprintln!("update check none");
-            // The time says how old "latest" is: checks run 30 s after launch, then every 6 h.
+            // The time says how old "latest" is: checks run 30 s after launch, then every 10 min.
             let at = chrono::Local::now().format("%H:%M");
             updates.check_label(&format!("检查更新（{at} 已是最新 {}）", app.package_info().version));
             return;
