@@ -76,6 +76,7 @@ const DAILY_TASKS: &[&str] = &[
     "operator_gifts",
     "credit_shop",
     "outpost_trading",
+    "delivery",
     "stockpile",
     "eco_farm",
     "prod_manual",
@@ -96,6 +97,7 @@ const ENGINE_MENU_TASKS: &[(&str, &str)] = &[
     ("prod_manual", "运行：简制手册 · 领取"),
     ("outpost_trading", "运行：据点交易"),
     ("stockpile", "运行：弹性物资囤货"),
+    ("delivery", "运行：仓储节点 · 转交委托"),
     ("eco_farm", "运行：生态农场 · 存仓"),
 ];
 
