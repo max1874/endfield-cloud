@@ -219,8 +219,17 @@
       const look = await toWorld();
       if (target === 'world') return look;
       if (target === 'menu') {
-        await E.key('Escape');
-        let look = await E.waitFor('menu', { timeout: 8000 });
+        // An Escape in the world once opened nothing for 8 s (run 20261031-112059-jpf8):
+        // press again, but only while the world still shows, so a slow menu stays open.
+        let look = null;
+        for (let attempt = 0; !look; attempt++) {
+          await E.key('Escape');
+          look = await E.waitFor('menu', { timeout: 4000 }).catch(error => {
+            if (error?.kind !== 'timeout' || attempt >= 2 || error.detail?.look?.screen !== 'world') throw error;
+            E.log(`nav menu: Escape unanswered, again (${attempt + 1})`);
+            return null;
+          });
+        }
         // The menu counts as shown while its entries still slide in. Right after a
         // login a click meant for 地区建设 opened 行动手册 (2026-10-23), so wait until
         // the entries hold still between two looks with the cursor parked.
