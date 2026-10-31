@@ -1,6 +1,6 @@
 mod update;
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{atomic::{AtomicBool, AtomicUsize, Ordering}, OnceLock};
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
     webview::{NewWindowFeatures, NewWindowResponse, PageLoadEvent},
@@ -17,8 +17,7 @@ extern "C" {
     fn endfield_engine_command(webview: *mut std::ffi::c_void, command: *const std::ffi::c_char);
     fn endfield_set_muted(webview: *mut std::ffi::c_void, muted: bool) -> std::ffi::c_ulong;
     fn endfield_assist_has_key() -> bool;
-    fn endfield_assist_paste_key() -> bool;
-    fn endfield_assist_clear_key();
+    fn endfield_assist_edit_key();
     #[cfg(debug_assertions)]
     fn endfield_dev_eval(
         webview: *mut std::ffi::c_void,
@@ -117,19 +116,23 @@ fn engine_command(window: &WebviewWindow, command: &str) -> tauri::Result<()> {
     })
 }
 
-// 自动化 → 模型兜底: the key item says whether a key is set; `pasted` is the outcome of
-// the paste just made, if any.
-struct AssistKeyItem(MenuItem<tauri::Wry>);
+// 自动化 → 模型兜底: the key item opens the key dialog (native/engine.m) and says
+// whether a key is set.
+static ASSIST_KEY_ITEM: OnceLock<MenuItem<tauri::Wry>> = OnceLock::new();
 
-fn assist_key_label(pasted: Option<bool>) -> &'static str {
+fn assist_key_label() -> &'static str {
     #[cfg(target_os = "macos")]
     let has_key = unsafe { endfield_assist_has_key() };
     #[cfg(not(target_os = "macos"))]
     let has_key = false;
-    match (pasted, has_key) {
-        (Some(false), _) => "模型兜底：剪贴板里不是 DeepSeek Key",
-        (_, true) => "模型兜底：DeepSeek Key 已设置（粘贴可替换）",
-        _ => "模型兜底：粘贴 DeepSeek Key",
+    if has_key { "模型兜底：DeepSeek Key 已设置…" } else { "模型兜底：设置 DeepSeek Key…" }
+}
+
+// Called by the key dialog after it saves or clears the key.
+#[no_mangle]
+pub extern "C" fn endfield_assist_key_changed() {
+    if let Some(Err(error)) = ASSIST_KEY_ITEM.get().map(|item| item.set_text(assist_key_label())) {
+        eprintln!("assist menu_failed {error}");
     }
 }
 
@@ -254,11 +257,10 @@ fn main() {
             automation.append(&MenuItem::with_id(app, "engine-stop", "结束运行", true, Some("CmdOrCtrl+Shift+."))?)?;
             automation.append(&PredefinedMenuItem::separator(app)?)?;
             // Model assist (native/engine/core.js) runs on the user's own DeepSeek key.
-            let assist_key = MenuItem::with_id(app, "assist-key", assist_key_label(None), true, None::<&str>)?;
-            app.manage(AssistKeyItem(assist_key.clone()));
+            let assist_key = MenuItem::with_id(app, "assist-key", assist_key_label(), true, None::<&str>)?;
+            let _ = ASSIST_KEY_ITEM.set(assist_key.clone());
             automation.append(&assist_key)?;
             automation.append(&MenuItem::with_id(app, "assist-check", "模型兜底：自检", true, None::<&str>)?)?;
-            automation.append(&MenuItem::with_id(app, "assist-clear", "模型兜底：清除 Key", true, None::<&str>)?)?;
             menu.append(&automation)?;
             app.set_menu(menu)?;
             create_window(app.handle(), "game", CLOUD_URL.parse()?, None)?;
@@ -271,18 +273,7 @@ fn main() {
                 "update-check" => { update::check_now(app); return; }
                 "update-install" => { update::request_install(app); return; }
                 #[cfg(target_os = "macos")]
-                "assist-key" | "assist-clear" => {
-                    let pasted = if event.id().as_ref() == "assist-key" {
-                        Some(unsafe { endfield_assist_paste_key() })
-                    } else {
-                        unsafe { endfield_assist_clear_key() };
-                        None
-                    };
-                    if let Err(error) = app.state::<AssistKeyItem>().0.set_text(assist_key_label(pasted)) {
-                        eprintln!("assist menu_failed {error}");
-                    }
-                    return;
-                }
+                "assist-key" => { unsafe { endfield_assist_edit_key() }; return; }
                 _ => {}
             }
             let windows = app.webview_windows();

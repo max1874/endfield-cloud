@@ -111,8 +111,9 @@ and licensed under AGPL-3.0 (`LICENSE`, Max 2026-10-27), which these files requi
   session, runs the tasks and exits the session.
 - Model assist (Max 2026-10-30): when Vision misses a label or cannot settle a number,
   `E.findText(..., { assist })` and `E.readNumber(..., { assist: true })` ask DeepSeek's
-  vision model, on the key the user pastes from 自动化 → 模型兜底 (stored as
-  `deepseek-key` beside `automation/`; the app never reads the agents' key store).
+  vision model, on the key the user enters in the 自动化 → 模型兜底 dialog (checked
+  against DeepSeek's free `/user/balance` before saving, stored as `deepseek-key`
+  beside `automation/`; the app never reads the agents' key store).
   It only reads and finds: never an action choice, never a read that a purchase,
   trade or gift is checked against. Each answer lands in the task's `assists` with
   the image the model saw, and the summary says 模型协助 N 处; turn a recurring
