@@ -112,9 +112,16 @@
       // behind it ("听雨窟、牧场"); an entry may keep its icon as a leading character.
       const listed = await E.ocr(look.frame, CANDIDATES, { scale: 2 });
       const entry = listed.find(t => { const text = t.text.replace(/\s/g, ''); return text.endsWith(facility.name) && text.length <= facility.name.length + 2; });
-      if (entry) await E.click(...E.center(entry));
-      else t.note(`no ${facility.name} entry among: ${listed.map(t => t.text).join('|')}`);
+      if (entry) { await E.click(...E.center(entry)); continue; }
+      t.note(`no ${facility.name} entry among: ${listed.map(t => t.text).join('|')}`);
+      // Neither panel nor list: the map had moved under the click (run 20261031-103018-egvg:
+      // icon matched at its usual spot, then the map sat ~(+180, -200) px away with no
+      // panel). Find the icon where it is now and click it again.
+      const moved = await E.match(look.frame, facility.template, WHOLE_MAP, { step: 2 });
+      t.note(`${facility.name} icon again: score ${moved.score.toFixed(2)} at ${moved.x.toFixed(3)},${moved.y.toFixed(3)}`);
+      if (moved.score >= 0.6) await E.click(moved.x + moved.w / 2, moved.y + moved.h / 2);
     }
+    await t.save(map.frame, `${facility.id}-map-clicked`);
     await t.save((await E.grab()), `${facility.id}-panel-missing`);
     E.fail(`${facility.id}_panel_not_opened`);
   }

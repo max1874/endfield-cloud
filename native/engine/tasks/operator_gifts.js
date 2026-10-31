@@ -272,19 +272,24 @@
   }
 
   // A card's info button (i, top-left) opens a popup with the operator's name left of
-  // 心情; a click on the panel's blank left side closes it.
-  async function cardName(card) {
-    await E.click((card.x - 48) / 1920, (card.y - 48) / 1080);
-    await E.sleep(1200);
-    const look = await E.look();
-    // The popup opens beside the card, left of the grid's first column.
-    const mood = await E.findText(look, /心情/, [0.05, 0.2, 0.75, 0.6]);
-    const name = mood && look.texts.filter(t => Math.abs(t.y - mood.y) < 0.015 && t.x < mood.x && NAME.test(t.text))
-      .sort((a, b) => b.x - a.x)[0];
-    await E.click(0.15, 0.75);
-    await E.sleep(800);
-    if (!name) E.fail('card_name_unread');
-    return name.text.match(NAME)[1];
+  // 心情; a click on the panel's blank left side closes it. Run 20261031-103018-egvg
+  // read no name once and kept no popup frame: an unread popup is saved and opened again.
+  async function cardName(t, card) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await E.click((card.x - 48) / 1920, (card.y - 48) / 1080);
+      await E.sleep(1200);
+      const look = await E.look();
+      // The popup opens beside the card, left of the grid's first column.
+      const mood = await E.findText(look, /心情/, [0.05, 0.2, 0.75, 0.6]);
+      const row = mood ? look.texts.filter(t => Math.abs(t.y - mood.y) < 0.015 && t.x < mood.x) : [];
+      const name = row.filter(t => NAME.test(t.text)).sort((a, b) => b.x - a.x)[0];
+      await E.click(0.15, 0.75);
+      await E.sleep(800);
+      if (name) return name.text.match(NAME)[1];
+      await t.save(look.frame, `card-name-unread-${attempt}`);
+      t.note(`card name unread: ${mood ? `心情 row ${row.map(t => t.text).join('|') || 'empty'}` : 'no 心情'}`);
+    }
+    E.fail('card_name_unread');
   }
 
   // Cards in order (lowest 信赖度 first after the gift-icon ones), without the gift-icon
@@ -529,7 +534,7 @@
         const cards = [];
         for (const card of await candidates(contact)) {
           if (cards.length >= OPERATORS - done.size) break;
-          card.name = await cardName(card);
+          card.name = await cardName(t, card);
           if (!done.has(card.name) && !passed.has(card.name)) cards.push(card);
         }
         if (!cards.length) {
