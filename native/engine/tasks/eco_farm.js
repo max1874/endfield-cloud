@@ -176,18 +176,22 @@
     title: '生态农场 · 存仓',
     start: 'world',
     async run(t) {
-      const stored = [];
+      const stored = [], missing = [];
       for (const facility of FACILITIES) {
+        const name = `${facility.area}${facility.name}`;
         try {
-          if (await store(t, facility)) stored.push(`${facility.area}${facility.name}`);
+          if (await store(t, facility)) stored.push(name);
         } catch (error) {
           if (!error?.detail?.missing) throw error;
-          t.note(`${facility.area}${facility.name}: not on the map (${error.message}), skipped`);
+          t.note(`${name}: not on the map (${error.message}), skipped`);
+          missing.push(name);
           await E.nav.to('world', null);
         }
       }
-      if (!stored.length) return t.skip('自动农植机 (祀的画, 武陵城) and 牧场 hold nothing');
-      return t.pass(`stored ${stored.join(', ')} into the 武陵 warehouse`);
+      // Skipped facilities go in the summary: one the map search missed must not read as done.
+      const skipped = missing.length ? `; ${missing.join(', ')} not found on the map, skipped` : '';
+      if (!stored.length) return t.skip(`nothing to store${skipped}`);
+      return t.pass(`stored ${stored.join(', ')} into the 武陵 warehouse${skipped}`);
     }
   });
 })();

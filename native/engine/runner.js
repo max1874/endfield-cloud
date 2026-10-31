@@ -78,6 +78,20 @@
   for (const type of ['mousedown', 'mouseup', 'click', 'pointerdown', 'pointerup'])
     bar.addEventListener(type, event => event.stopPropagation());
   E.controls = bar;
+  // While a task runs, real input stays out of the page (Max 2026-10-30): a stray click,
+  // hover, key or scroll moves the game out from under the task. Engine input is
+  // synthetic and passes, and so do the bar, Cmd shortcuts (a key the page cancels never
+  // reaches the app menu, which holds 结束运行) and releases, so nothing held before the
+  // run sticks. Control returns the moment 接管 or 结束 is pressed. The page bundle
+  // (2026-10-31) listens on document, its elements, or window after load, all of which
+  // a capture on window registered at document end precedes.
+  for (const type of ['keydown', 'keypress', 'mousedown', 'click', 'dblclick', 'contextmenu', 'mousemove',
+    'mouseover', 'pointerdown', 'pointermove', 'pointerover', 'wheel', 'touchstart', 'touchmove'])
+    window.addEventListener(type, event => {
+      if (!event.isTrusted || event.metaKey || !E.acting() || bar.contains(event.target)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, { capture: true, passive: false });
   // mode: running, paused, done (fades after 15 s), or update (stays until acted on).
   let fade = null;
   const show = (text, mode) => {

@@ -48,8 +48,9 @@ and licensed under AGPL-3.0 (`LICENSE`, Max 2026-10-27), which these files requi
   log goes to `artifacts/runtime-*.log`; page errors and WebRTC state appear there
   prefixed with `page`).
 - Automation runs while the window is covered or inactive; never reintroduce a focus
-  requirement. Only 接管 pauses a run (Max 2026-10-23); real input in the game is
-  ignored, since a trackpad scroll over the inactive window already reaches the page.
+  requirement. Only 接管 pauses a run (Max 2026-10-23), since a trackpad scroll over
+  the inactive window already reaches the page; while a task runs, real input is
+  blocked before the page sees it (Max 2026-10-30, `runner.js`).
   A bar at the top of the page offers 接管 while running and 继续 / 结束 while paused,
   and the 自动化 menu has the same actions. 继续 starts the interrupted task over;
   结束 leaves the session to the user.

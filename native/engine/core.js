@@ -39,6 +39,8 @@
   E.resume = () => waiting?.('continue');
   E.paused = () => !!waiting;
   E.running = () => !!abort;
+  // A step is under way: neither paused nor unwinding from 接管 or 结束.
+  E.acting = () => !!abort && !abort.signal.aborted;
   E.check = () => {
     if (abort?.signal.aborted) throw new EngineError('stopped', String(abort.signal.reason));
   };
@@ -155,16 +157,8 @@
   E.ocr = async (frame, roi = [0, 0, 1, 1], { scale = 1, fast = false, digits = false } = {}) => {
     const canvas = E.crop(frame, roi, scale);
     const image = roi[2] * roi[3] > 0.25 ? canvas.toDataURL('image/jpeg', 0.92) : canvas.toDataURL('image/png');
-    // Vision occasionally fails a request outright ("TextRecognition.CRImageReaderError
-    // error 1", run 20261030-103957-ho5k); the same image reads on a retry.
-    let texts;
-    for (let attempt = 0; ; attempt++) {
-      try { ({ texts } = await bridge({ op: 'ocr', image, fast, digits })); break; } catch (error) {
-        if (attempt >= 2) throw error;
-        E.log(`ocr retry ${attempt + 1}: ${error?.message || error}`);
-        await E.sleep(300 * (attempt + 1));
-      }
-    }
+    // A request Vision fails outright is retried natively (engine.m).
+    const { texts } = await bridge({ op: 'ocr', image, fast, digits });
     E.check();
     return texts.map(t => ({ ...t, x: roi[0] + t.x * roi[2], y: roi[1] + t.y * roi[3], w: t.w * roi[2], h: t.h * roi[3] }));
   };

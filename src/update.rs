@@ -88,7 +88,9 @@ async fn check_and_download(app: &AppHandle) {
         Ok(Some(update)) => update,
         Ok(None) => {
             eprintln!("update check none");
-            updates.check_label(&format!("检查更新（已是最新 {}）", app.package_info().version));
+            // The time says how old "latest" is: checks run 30 s after launch, then every 6 h.
+            let at = chrono::Local::now().format("%H:%M");
+            updates.check_label(&format!("检查更新（{at} 已是最新 {}）", app.package_info().version));
             return;
         }
         Err(error) => {

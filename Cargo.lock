@@ -749,6 +749,7 @@ name = "endfield-cloud-prototype"
 version = "0.2.13"
 dependencies = [
  "cc",
+ "chrono",
  "serde_json",
  "tauri",
  "tauri-build",
