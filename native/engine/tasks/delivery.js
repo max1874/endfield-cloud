@@ -21,7 +21,9 @@
   const CONFIRM = [0.5, 0.6, 0.2, 0.1];
   const TRANSFERS = [0.03, 0.25, 0.95, 0.65];
   const STATUS = [0.6, 0.25, 0.19, 0.65];
-  const BALANCE_CELL_X = 0.88;
+  const RECEIVER = [0.43, 0.25, 0.17, 0.65];
+  const CLAIM = [0.84, 0.9, 0.14, 0.06];
+  const LIST_BAR = 1885 / 1920;
 
   E.screen('depot', look => look.has('本地仓储节点', TABS) && look.has('我转交的委托', TABS), 74);
 
@@ -52,8 +54,24 @@
   };
   const timedOut = error => { if (error?.kind !== 'timeout') throw error; return null; };
   const isNodeButton = text => ['货物装箱', '查看报价'].some(label => E.sameName(text.replace(/\s/g, ''), label));
-  // Handed-over deliveries still listed (waiting for a courier or on the way).
-  const listed = async look => (await E.findAllText(look, /已发布|运送中/, STATUS)).length;
+  const bottomTransfers = async () => {
+    const look = await tab('我转交的委托');
+    // The white scrollbar thumb is absent when the rows fit in one view.
+    for (let y = 0.25; y < 0.89; y += 0.005) {
+      if (!E.color(look.frame, [LIST_BAR, y, 1 / 1920, 4 / 1080]).every(v => v > 210)) continue;
+      await E.drag([LIST_BAR, y + 0.004], [LIST_BAR, 0.895], { ms: 700 });
+      await pause();
+      return E.look();
+    }
+    return look;
+  };
+  // Read only the bottom view: new listings append there, matched by 接收点 and status.
+  const listed = async (look, node) => {
+    const receivers = await E.findAllText(look, /\S/, RECEIVER);
+    return (await E.findAllText(look, /已发布|运送中/, STATUS)).filter(status => receivers.some(cell =>
+      Math.abs(E.center(cell)[1] - E.center(status)[1]) < 0.025 &&
+      E.sameName(cell.text.replace(/[()（）\[\]【】\s]/g, ''), node))).length;
+  };
   const finished = text => /领取|已送达|已完成|已签收/.test(text) && !/已领取/.test(text);
   // Back to the node list from anywhere inside a node's flow.
   async function backToDepot() {
@@ -67,35 +85,36 @@
   }
 
   // 尾款 of finished deliveries: rows in 我转交的委托 that no longer wait or travel.
-  // What a finished row shows has not been seen yet; the before frame keeps it.
   async function claim(t, region) {
     let look = await tab('我转交的委托');
-    let before = await t.save(look.frame, `${slug(region)}-transfers-before`);
-    for (let n = 0; n < 5; n++) {
-      const row = (await E.findAllText(look, finished, TRANSFERS))[0];
-      if (!row) break;
-      await E.click(BALANCE_CELL_X, row.y + row.h / 2);
+    const before = await t.save(look.frame, `${slug(region)}-transfers-before`);
+    if ((await E.findAllText(look, finished, STATUS)).length) {
+      const claimAll = await E.findText(look, '一键领取', CLAIM, { assist: true });
+      if (!claimAll) E.fail('transfers_without_一键领取');
+      await E.click(...E.center(claimAll));
       const reward = await E.waitFor('reward', { timeout: 6000 }).catch(timedOut);
       if (!reward) {
         await t.save(await E.grab(), `${slug(region)}-claim-nothing-opened`);
-        t.note(`${region}: 「${row.text}」 row opened no reward`);
+        t.note(`${region}: 一键领取 opened no reward (调度券 may be above its cap)`);
         look = await tab('我转交的委托');
-        break;
+      } else {
+        const frame = await t.save(reward.frame, `${slug(region)}-balance-reward`);
+        const items = await E.reward.read(reward);
+        await E.reward.confirm();
+        look = await until(l => l.screen === 'depot' && SHOWN['我转交的委托'](l), 'transfers_after_claim');
+        const after = await t.save(look.frame, `${slug(region)}-transfers-after-claim`);
+        t.change({ what: `${region} 尾款`, items, frames: [before, frame, after] });
       }
-      const frame = await t.save(reward.frame, `${slug(region)}-balance-reward-${n}`);
-      const items = await E.reward.read(reward);
-      await E.reward.confirm();
-      look = await until(l => l.screen === 'depot' && SHOWN['我转交的委托'](l), 'transfers_after_claim');
-      const after = await t.save(look.frame, `${slug(region)}-transfers-after-claim-${n}`);
-      t.change({ what: `${region} 尾款`, row: row.text, items, frames: [before, frame, after] });
-      before = after;
     }
     t.note(`${region} transfers: ${E.findAll(look.texts, /\S/, TRANSFERS).map(x => x.text).slice(0, 16).join('|')}`);
-    return listed(look);
   }
 
-  async function ship(t, region, node, button, index, rowsBefore) {
+  async function ship(t, region, node, button, index) {
     const tag = `${slug(region)}-node${index}`;
+    const transfers = await bottomTransfers();
+    const rowsBefore = await listed(transfers, node);
+    const before = await t.save(transfers.frame, `${tag}-transfers-before`);
+    await tab('本地仓储节点');
     await E.click(...E.center(button));
     // 货物装箱 opens the type choice; 查看报价 (box already full) goes to 调度申请.
     let look = await until(l => l.has('选择装箱货物类型') || l.has('报价列表'), `${tag}_cargo`);
@@ -108,7 +127,7 @@
       await E.click(...E.center(fill));
       // Without enough goods the button keeps reading 未达起送量: leave the box unpacked.
       look = await until(async l => !!await E.findText(l, /下一步/, NEXT), null, 6);
-      if (!look) { await t.save(await E.grab(), `${tag}-not-filled`); t.note(`${tag}: 填充至满 did not reach the shipping minimum, skipped`); return { look: await backToDepot(), rows: rowsBefore }; }
+      if (!look) { await t.save(await E.grab(), `${tag}-not-filled`); t.note(`${tag}: 填充至满 did not reach the shipping minimum, skipped`); return backToDepot(); }
       const capacity = (await E.ocr(look.frame, CAPACITY)).map(x => x.text).join('');
       await t.save(look.frame, `${tag}-filled`);
       await E.click(...E.center(await E.findText(look, /下一步/, NEXT)));
@@ -118,7 +137,7 @@
     if (look.has(/有待运送的货物/)) {
       await t.save(look.frame, `${tag}-ongoing-delivery`);
       t.note(`${tag}: a delivery is still on the player, skipped`);
-      return { look: await backToDepot(), rows: rowsBefore };
+      return backToDepot();
     }
     const bid = await t.save(look.frame, `${tag}-bid`);
     const cargo = look.texts.find(x => /货箱$/.test(x.text))?.text || null;
@@ -148,20 +167,20 @@
       } else other ??= await t.save(l.frame, `${tag}-after-confirm`);
       return false;
     }, `${tag}_transfers_after`, 20);
-    look = await tab('我转交的委托');
+    look = await bottomTransfers();
     const after = await t.save(look.frame, `${tag}-transfers-after`);
     // The game shows the change: one more delivery listed as handed over.
-    const rows = await listed(look);
+    const rows = await listed(look, node);
     t.change({ what: `${region} ${node} 快速转交`, cargo, quote, deposit, received: items, listed: { before: rowsBefore, after: rows },
-      frames: [bid, dialog, rewardFrame, other, after].filter(Boolean) });
+      frames: [before, bid, dialog, rewardFrame, other, after].filter(Boolean) });
     if (rows <= rowsBefore) E.fail(`${tag}_transfer_not_listed_${rowsBefore}_${rows}`);
     await tab('本地仓储节点');
-    return { look: await E.look(), rows };
+    return E.look();
   }
 
   async function shipRegion(t, region) {
     await until(l => l.screen === 'depot', 'depot');
-    let rows = await claim(t, region);
+    await claim(t, region);
     let look = await tab('本地仓储节点');
     await t.save(look.frame, `${slug(region)}-nodes`);
     // A node is known by the name above its button (by its column when unread).
@@ -175,7 +194,7 @@
       }).filter(n => !tried.some(done => E.sameName(done, n.node)));
       if (!nodes.length) break;
       tried.push(nodes[0].node);
-      ({ look, rows } = await ship(t, region, nodes[0].node, nodes[0].button, tried.length, rows));
+      look = await ship(t, region, nodes[0].node, nodes[0].button, tried.length);
     }
     if (!tried.length) t.note(`${region}: no node offers 货物装箱 (${E.findAll(look.texts, /\S/, NODE_BUTTONS).map(x => x.text).join('|')})`);
   }
