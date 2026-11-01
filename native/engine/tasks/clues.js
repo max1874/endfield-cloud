@@ -153,7 +153,7 @@
     await E.waitFor('reception', { timeout: 10000 });
   }
 
-  // 线索交流: start it when the board allows; while one runs, just record its timer.
+  // 线索交流: press 开展交流 when offered; while one runs, just record its timer.
   async function exchange(t) {
     await E.park({ at: [0.5, 0.03], settle: 600 });
     let look = await E.look();
@@ -161,7 +161,7 @@
       const timer = E.find(look.texts, /^\d{2}:\d{2}:\d{2}$/, [0.55, 0.8, 0.15, 0.06])?.text;
       return t.note(`线索交流 in progress${timer ? `, ${timer} left` : ''}`);
     }
-    const start = E.find(look.texts, '开始线索交流');
+    const start = await E.findText(look, /开展交流/, [0.54, 0.76, 0.17, 0.06], { assist: '开展交流' });
     // The board needs all 7 types placed: "集齐所有线索可开展情报交流".
     if (!start && look.has('集齐所有线索')) {
       await t.save(look.frame, 'exchange-board-incomplete');
@@ -169,7 +169,7 @@
     }
     if (!start) {
       await t.save(look.frame, 'exchange-unavailable');
-      return t.note('线索交流 neither running nor startable (board incomplete?)');
+      E.fail('exchange_not_startable');
     }
     const before = await t.save(look.frame, 'exchange-before');
     await E.click(...E.center(start));

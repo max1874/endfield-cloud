@@ -241,13 +241,26 @@
     await E.assist?.({ what: `read ${read}`, roi, vision: Object.fromEntries(votes) }, { canvas: E.crop(frame, roi, 3), time: frame.time });
     return read;
   };
+  // One text in a small crop; model assist is used only when Vision reads no match.
+  E.readText = async (frame, roi, pattern, { assist = false } = {}) => {
+    for (const scale of [2, 3]) {
+      const hit = E.find(await E.ocr(frame, roi, { scale }), pattern);
+      if (hit) return hit.text;
+    }
+    if (!assist) return null;
+    const read = await assisted(() => E.llm.text(frame, roi, pattern));
+    if (read === null) return null;
+    await E.assist?.({ what: `read 「${read}」`, roi }, { canvas: E.crop(frame, roi, 3), time: frame.time });
+    return read;
+  };
 
   // ---- model assist --------------------------------------------------------------
   // When Vision misses a label or cannot settle a number, a vision model (DeepSeek, on
   // the user's own key; without one nothing changes) answers about the frame. It only
   // reads and finds, never chooses an action, and callers opt in ({ assist }) where a
   // miss would fail the task; reads that choose a purchase (list prices) or that a
-  // purchase, trade or gift is checked against (receipt counts) stay on Vision. The
+  // purchase, trade or gift is checked against (receipt counts) stay on Vision. An
+  // operator name may be assisted to summon them; the game verifies the gift. The
   // runner records each answer with the image the model saw (E.assist).
   // Offline on our frames (2026-10-30): crops read 48 of 50; given Vision's boxes
   // numbered on the frame it picked 10 of 10; its own coordinates (0-1000) landed on
@@ -267,6 +280,10 @@
     return answer;
   };
   E.llm = {
+    async text(frame, roi, pattern) {
+      const answer = await ask(E.crop(frame, roi, 3), '读出这块游戏截图里的文字，只回答原文；看不清就回答“无”。');
+      return answer !== '无' && matches(answer, pattern) ? answer : null;
+    },
     async number(frame, roi) {
       const answer = await ask(E.crop(frame, roi, 3), '这块游戏截图里有一个数字，是多少？只回答阿拉伯数字；看不清就回答“无”。');
       return /^\d+$/.test(answer) ? Number(answer) : null;

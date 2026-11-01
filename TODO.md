@@ -7,6 +7,30 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 
 ## Follow-ups
 
+### Paths changed on 2026-11-01 that have not run live — added 2026-11-01
+
+- **Trigger:** the first 每日全部 run on the release that carries branch
+  `max/daily-run-fixes`.
+- **Check:** in the run's results:
+  - `clue_exchange` pressing 开展交流 (frames `exchange-before`/`exchange-after`); the
+    button was found by `findText` only offline on `20261101-105407-dcxo` frame 011;
+  - `delivery` 一键领取 (`*-balance-reward`, `*-transfers-after-claim`) and a
+    `*-transfers-before/after` frame scrolled to the bottom of an overflowing list;
+  - `credit_shop` buying a card at −95% when one shows.
+- **Done when:** each path is seen passing once, or fails with its own item.
+
+### 快速赠予重复线索 instead of one gift at a time — added 2026-11-01
+
+- **Trigger:** 赠予自有线索 with a clue type in stock at 2 or more (the next run
+  that `clue_exchange` reports a 赠予 change).
+- **Seen so far:** the button stayed grey with a duplicate in stock (2026-10-22);
+  grey with every stock at 1 (Max's screenshot 2026-11-01). When it turns white,
+  and whether it sends to friends who need the clue (40 信用) first, is unknown.
+- **Check:** a frame of the clue list with a stock of 2+ and the button's color;
+  if white, press it once in a probe and read the 信用 before/after and stocks.
+- **Done when:** `clues.js` uses it when it is enabled (one-at-a-time stays the
+  fallback), or the probe shows it pays less than one-at-a-time and the idea is dropped.
+
 ### 生态农场 农植机 store loop through the task — added 2026-10-29
 
 - **Trigger:** a v0.2.7+ run of `eco_farm` while a 自动农植机 (祀的画 or 武陵城)

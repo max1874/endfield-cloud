@@ -1,5 +1,5 @@
 // 信用点购物: menu → 采购中心 → 信用交易所. Max's rules (2026-10-22): collect pending
-// 信用 first (收取信用); buy only goods at 75% off, plus 嵌晶玉 and 武库配额 at any
+// 信用 first (收取信用); buy only goods at 75% off or more, plus 嵌晶玉 and 武库配额 at any
 // discount; spend what is left on refreshes (立即刷新: a few per day, the cost is on
 // the button) and buy by the same rule after each. The shop shows up to two rows of
 // 7 cards: a discount tag top right ("-75%"), the price above the name bar. A card
@@ -69,7 +69,7 @@
     }
     return cards;
   };
-  const wanted = card => !card.soldOut && (card.off === OFF || ALWAYS.test(card.name));
+  const wanted = card => !card.soldOut && (card.off >= OFF || ALWAYS.test(card.name));
 
   // Wait for the shop list (seen twice in a row), confirming any reward on the way.
   async function backToShop(t, label) {

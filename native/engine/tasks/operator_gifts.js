@@ -279,15 +279,18 @@
       await E.click((card.x - 48) / 1920, (card.y - 48) / 1080);
       await E.sleep(1200);
       const look = await E.look();
-      // The popup opens beside the card, left of the grid's first column.
-      const mood = await E.findText(look, /心情/, [0.05, 0.2, 0.75, 0.6]);
-      const row = mood ? look.texts.filter(t => Math.abs(t.y - mood.y) < 0.015 && t.x < mood.x) : [];
-      const name = row.filter(t => NAME.test(t.text)).sort((a, b) => b.x - a.x)[0];
+      // The popup opens beside the card, left of the grid's first column. Its skill
+      // lines may mention 心情 too ("…干员心情消耗降低14%"), which run 20261101-105407-dcxo
+      // took for the label: match the label alone.
+      const mood = await E.findText(look, /^.?心情$/, [0.05, 0.2, 0.75, 0.6]);
+      // Name starts ~245 px left of 心情; exclude the avatar and the room tag below.
+      const name = mood ? await E.readText(look.frame,
+        [mood.x - 250 / 1920, mood.y - 5 / 1080, 225 / 1920, 30 / 1080], NAME, { assist: true }) : null;
       await E.click(0.15, 0.75);
       await E.sleep(800);
-      if (name) return name.text.match(NAME)[1];
+      if (name) return name.match(NAME)[1];
       await t.save(look.frame, `card-name-unread-${attempt}`);
-      t.note(`card name unread: ${mood ? `心情 row ${row.map(t => t.text).join('|') || 'empty'}` : 'no 心情'}`);
+      t.note(`card name unread: ${mood ? '心情 row empty' : 'no 心情'}`);
     }
     E.fail('card_name_unread');
   }
