@@ -78,12 +78,19 @@
         return null;
       });
     }
-    if (look.screen === 'stock_sell') {
+    // The 购买 toggle click can go unanswered too (run 20261103-105348-bpbn, 四号谷地,
+    // after a purchase that had already gone through); pressing it again is harmless
+    // while 出售物资 still shows.
+    for (let attempt = 0; look.screen === 'stock_sell'; attempt++) {
       const buySide = await E.findText(look, /^购买/, SIDE_TOGGLE, { assist: '购买' });
       if (!buySide) E.fail(`${card.name}_sell_dialog_without_购买`, { look });
       await E.click(...E.center(buySide));
       await E.park({ at: [0.5, 0.1], settle: 600 });
-      look = await E.waitFor('stock_buy', { timeout: 8000 });
+      look = await E.waitFor('stock_buy', { timeout: 6000 }).catch(async error => {
+        if (error.kind !== 'timeout' || attempt > 0 || error.detail?.look?.screen !== 'stock_sell') throw error;
+        await t.save(error.detail.look.frame, `${label}-buy-side-missed`);
+        return error.detail.look;
+      });
     }
     const dialog = await readDialog(look);
     if (!E.sameName(dialog.name, card.name)) E.fail(`opened_${dialog.name}_not_${card.name}`);
