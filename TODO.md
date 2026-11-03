@@ -7,6 +7,17 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 
 ## Follow-ups
 
+### 囤货: the 购买 toggle click pressed again — added 2026-11-03
+
+- **Trigger:** 每日全部 runs on the release that carries branch
+  `max/stockpile-buy-toggle-retry`.
+- **Check:** `stockpile` passes in both regions with owned/balance reconciled; when a
+  frame `*-buy-side-missed` appears, the next frame `*-after` shows 购买物资. Run
+  `20261103-105348-bpbn` (四号谷地) bought 谷地水培肉货组 ×320, then timed out on
+  出售物资 because one toggle click went unanswered.
+- **Done when:** a run shows `buy-side-missed` followed by a pass, or a few runs pass
+  without it (then keep the retry and delete this item).
+
 ### Paths changed on 2026-11-01 that have not run live — added 2026-11-01
 
 - **Trigger:** the first 每日全部 run on the release that carries branch
@@ -65,11 +76,6 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 
 - **Trigger:** any 每日全部 run on v0.2.4 or later.
 - **Check:** in the run's results:
-  - `stockpile` after a real purchase: back to 当前拥有, the bought card found and
-    reopened, owned/balance reconciled (run `20261027-162543-18ze` timed out there;
-    nothing was sold). The 出售物资 → 购买 switch itself passed through `openCard`
-    in a probe on Max's account, run `20261027-202705-dl3k`
-    (`002-__-sell-side.png`, `003-__-buy-side.png`);
   - `operator_gifts` note "talk did not open (left?)" and the task going on;
   - `dijiang_collect` / `clue_exchange` note "I left the world open", a frame
     `nexus-unavailable-here`, the kiosk teleport and the 总控中枢 opening on the
