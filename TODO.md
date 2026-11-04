@@ -9,7 +9,9 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 
 ### 日常验收: 开展交流、委托长列表、−95% 信用购物
 
-- **Trigger:** 每日全部 on v0.2.22 or later, when each applicable game state occurs.
+- **Trigger:** Max's next normal 每日全部 use on v0.2.22 or later, when each
+  applicable game state occurs. Max asked to defer live acceptance to normal use
+  (2026-11-04).
 - **Check:** `clue_exchange` starts a ready board (idle → 情报交流中) and leaves an
   incomplete board alone. The older v0.2.20 run `20261103-105348-bpbn` started an
   exchange, but v0.2.21 run `20261104-091033-kn0q` clicked an incomplete-board hint.

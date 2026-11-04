@@ -124,6 +124,10 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 
 ### Daily acceptance on v0.2.21 (2026-11-04)
 
+Max reserved further live acceptance for his next normal daily use (2026-11-04).
+Read that run's frames and recognized changes when available. Pending scenarios
+stay unverified and do not hold up development of manufacturing restocking.
+
 Run `20261104-091033-kn0q` verified two paths. 囤货 recovered from a missed 武陵
 购买 toggle (`014-wuling-buy-side-missed.png` → `015-wuling-after.png`). Quotas
 reached 0 in both regions, stocks rose by 320 and 230, and balances fell by
