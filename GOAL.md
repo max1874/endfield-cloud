@@ -122,6 +122,21 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 
 ## Ledger
 
+### Daily acceptance on v0.2.21 (2026-11-04)
+
+Max reserved further live acceptance for his next normal daily use (2026-11-04).
+Read that run's frames and recognized changes when available. Pending scenarios
+stay unverified and do not hold up development of manufacturing restocking.
+
+Run `20261104-091033-kn0q` verified two paths. 囤货 recovered from a missed 武陵
+购买 toggle (`014-wuling-buy-side-missed.png` → `015-wuling-after.png`). Quotas
+reached 0 in both regions, stocks rose by 320 and 230, and balances fell by
+217,600 and 241,730 respectively. 转交委托 一键领取 cleared all five 已完成
+rows and showed rewards of 谷地调度券 77.6万 and 武陵调度券 27.9万
+(`001-valley-transfers-before.png` through `003-valley-transfers-after-claim.png`).
+The five subsequent listings fit on one screen, so the long-list path is still
+open. See `TODO.md` for the remaining acceptance scenarios.
+
 | Item | Status | Evidence / next check |
 |------|--------|-----------------------|
 | Spike 1 viewport lock | done | `artifacts/acceptance-20261021-viewport/`, commit 919fe19 |
