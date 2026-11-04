@@ -15,8 +15,10 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
   exchange, but v0.2.21 run `20261104-091033-kn0q` clicked an incomplete-board hint.
   `delivery` reaches the bottom of an overflowing list and reads the new row there.
   The five new rows in `20261104-091033-kn0q` fit on one screen after claiming 尾款.
-  `credit_shop` buys an eligible −95% card if offered and reconciles the credit
-  debit. No such card was seen in the post-fix runs inspected so far.
+  `credit_shop` buys a −95% card outside the always-buy set and reconciles the
+  credit debit. The −95% 武库配额 bought in `20261026-122610-8jou` was already
+  eligible at any discount, so it cannot verify the new threshold. No qualifying
+  card was seen in the post-fix runs inspected so far.
 - **Done when:** each scenario has a live result with frames that agree with the
   engine's reading.
 
