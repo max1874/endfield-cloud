@@ -12,6 +12,7 @@
   const px = (x, y) => [x / 1920, y / 1080];
   const ROOM_ON_MAP = [0.4, 0.15, 0.2, 0.07];
   const SIDE = [0.9, 0.2, 0.1, 0.55];
+  const EXCHANGE_STATUS = [0.54, 0.76, 0.21, 0.06];
   const CLUE_LIST = [0.1, 0.15, 0.2, 0.75];
   const LIST_BAR = 549 / 1920;
   // Friend rows on 赠予自有线索: the 赠予 button of row i is centered at
@@ -161,12 +162,13 @@
       const timer = E.find(look.texts, /^\d{2}:\d{2}:\d{2}$/, [0.55, 0.8, 0.15, 0.06])?.text;
       return t.note(`线索交流 in progress${timer ? `, ${timer} left` : ''}`);
     }
-    const start = await E.findText(look, /开展交流/, [0.54, 0.76, 0.17, 0.06], { assist: '开展交流' });
-    // The board needs all 7 types placed: "集齐所有线索可开展情报交流".
-    if (!start && look.has('集齐所有线索')) {
+    // The incomplete board shows a hint in the same place as the start button.
+    // The model mistook the hint icon for the button in run 20261104-091033-kn0q.
+    if (await E.findText(look, '集齐所有线索', EXCHANGE_STATUS)) {
       await t.save(look.frame, 'exchange-board-incomplete');
       return t.note('线索交流 needs all 7 clue types on the board');
     }
+    const start = await E.findText(look, /^开展交流$/, EXCHANGE_STATUS);
     if (!start) {
       await t.save(look.frame, 'exchange-unavailable');
       E.fail('exchange_not_startable');

@@ -23,6 +23,11 @@
       const texts = await E.ocr(look.frame, roi, { scale });
       if (texts.length && texts.every(t => /^[0OoＯ〇]$/.test(t.text.trim()))) return 0;
     }
+    // Vision can miss the lone zero entirely. Match the full number field so
+    // a zero within a nonzero value cannot match the template.
+    const canvas = E.crop(look.frame, [340 / 1920, 821 / 1080, 112 / 1920, 48 / 1080], 1920 / look.frame.width);
+    const zero = await E.match({ canvas, width: canvas.width, height: canvas.height }, 'daily_activity_zero', [0, 0, 1, 1]);
+    if (zero.score >= 0.9) return 0;
     E.fail('activity_unread');
   };
   const readMilestones = async look => {
