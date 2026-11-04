@@ -7,28 +7,18 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 
 ## Follow-ups
 
-### 囤货: the 购买 toggle click pressed again — added 2026-11-03
+### 日常验收: 开展交流、委托长列表、−95% 信用购物
 
-- **Trigger:** 每日全部 runs on the release that carries branch
-  `max/stockpile-buy-toggle-retry`.
-- **Check:** `stockpile` passes in both regions with owned/balance reconciled; when a
-  frame `*-buy-side-missed` appears, the next frame `*-after` shows 购买物资. Run
-  `20261103-105348-bpbn` (四号谷地) bought 谷地水培肉货组 ×320, then timed out on
-  出售物资 because one toggle click went unanswered.
-- **Done when:** a run shows `buy-side-missed` followed by a pass, or a few runs pass
-  without it (then keep the retry and delete this item).
-
-### Paths changed on 2026-11-01 that have not run live — added 2026-11-01
-
-- **Trigger:** the first 每日全部 run on the release that carries branch
-  `max/daily-run-fixes`.
-- **Check:** in the run's results:
-  - `clue_exchange` pressing 开展交流 (frames `exchange-before`/`exchange-after`); the
-    button was found by `findText` only offline on `20261101-105407-dcxo` frame 011;
-  - `delivery` 一键领取 (`*-balance-reward`, `*-transfers-after-claim`) and a
-    `*-transfers-before/after` frame scrolled to the bottom of an overflowing list;
-  - `credit_shop` buying a card at −95% when one shows.
-- **Done when:** each path is seen passing once, or fails with its own item.
+- **Trigger:** 每日全部 on v0.2.22 or later, when each applicable game state occurs.
+- **Check:** `clue_exchange` starts a ready board (idle → 情报交流中) and leaves an
+  incomplete board alone. The older v0.2.20 run `20261103-105348-bpbn` started an
+  exchange, but v0.2.21 run `20261104-091033-kn0q` clicked an incomplete-board hint.
+  `delivery` reaches the bottom of an overflowing list and reads the new row there.
+  The five new rows in `20261104-091033-kn0q` fit on one screen after claiming 尾款.
+  `credit_shop` buys an eligible −95% card if offered and reconciles the credit
+  debit. No such card was seen in the post-fix runs inspected so far.
+- **Done when:** each scenario has a live result with frames that agree with the
+  engine's reading.
 
 ### 快速赠予重复线索 instead of one gift at a time — added 2026-11-01
 
