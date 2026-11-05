@@ -16,7 +16,7 @@ profile=debug
 cargo_flags=()
 if [ "${1:-}" = "--release" ]; then
   if [ -z "${UPDATE_SIGNING_KEY:-}" ]; then
-    echo "Release builds require UPDATE_SIGNING_KEY. Run: key run UPDATE_SIGNING_KEY=ENDFIELD_CLOUD_UPDATE_SIGNING_KEY -- scripts/build-app.sh --release" >&2
+    echo "Release builds require UPDATE_SIGNING_KEY. Run: open-agent-keys run UPDATE_SIGNING_KEY=ENDFIELD_CLOUD_UPDATE_SIGNING_KEY -- scripts/build-app.sh --release" >&2
     exit 1
   fi
   profile=release

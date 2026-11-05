@@ -35,7 +35,7 @@ and licensed under AGPL-3.0 (`LICENSE`, Max 2026-10-27), which these files requi
 ## Runtime
 
 - Releases: bump `version` in `Cargo.toml` and `tauri.conf.json`, run
-  `key run UPDATE_SIGNING_KEY=ENDFIELD_CLOUD_UPDATE_SIGNING_KEY -- scripts/build-app.sh --release`,
+  `open-agent-keys run UPDATE_SIGNING_KEY=ENDFIELD_CLOUD_UPDATE_SIGNING_KEY -- scripts/build-app.sh --release`,
   tag `vX.Y.Z` on `main` and attach `dist/endfield-cloud-vX.Y.Z-macos-arm64.zip`
   (manual installs), `dist/endfield-cloud-vX.Y.Z-macos-arm64.app.tar.gz` and
   `dist/latest.json` to the GitHub release. The signature is embedded in
