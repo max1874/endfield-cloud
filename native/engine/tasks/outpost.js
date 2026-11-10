@@ -58,10 +58,11 @@
   const stockValue = text => {
     const m = text.match(/(\d+(?:\.(\d+))?)(万)?/);
     if (!m) return null;
-    const value = parseFloat(m[1]) * (m[3] ? 10000 : 1);
-    // "9万" is anything from 85000 to 94999; a plain number is exact.
-    const slack = m[3] ? 0.5 * 10 ** (4 - (m[2] || '').length) : 0;
-    return { value, slack };
+    if (!m[3]) return { value: Number(m[1]), slack: 0 };
+    // The game truncates: "1.87万" is 18700 to 18799 (18761 read 1.87万 in run
+    // 20261110-101620-jy7h), so value is the middle of that range.
+    const slack = 0.5 * 10 ** (4 - (m[2] || '').length);
+    return { value: parseFloat(m[1]) * 10000 + slack, slack };
   };
   // Cards visible in one look: name above 本地仓储, stock under it.
   // The selected card also carries a 当前 tag in the name line.

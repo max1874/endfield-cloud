@@ -44,8 +44,10 @@
     return !!await E.findText(look, /赠送礼物|收下礼物/, TALK_GIFT) && !!await E.findText(look, /离开/, TALK_LEAVE);
   }, 74);
   // A spoken line: the speaker's name and the line at the bottom, waiting for a click.
-  // Its corner shows an ESC hint too, which the world screen keys on.
-  E.screen('talk_line', look => look.has(/[\u4e00-\u9fff]/, [0.42, 0.79, 0.16, 0.05]) && look.has(/\S{6,}/, [0.08, 0.85, 0.84, 0.07]), 73);
+  // Its corner shows an ESC hint too, which the world screen keys on. A loose test, so
+  // every anchored screen outranks it: a region map with a place name above its
+  // counters ("51/250") passed it (run 20261110-101620-jy7h).
+  E.screen('talk_line', look => look.has(/[\u4e00-\u9fff]/, [0.42, 0.79, 0.16, 0.05]) && look.has(/\S{6,}/, [0.08, 0.85, 0.84, 0.07]), 65);
   E.nav.dismiss.talk_line = async () => { await E.click(0.5, 0.6); };
   // OCR misses either anchor on some frames.
   E.screen('gift', look => look.has(/赠送礼物$/, [0, 0, 0.15, 0.06]) || look.has('今日赠礼可提升的信赖', [0.78, 0.35, 0.2, 0.05]) || look.has('赠礼记录', [0.02, 0.8, 0.08, 0.05]), 77);
@@ -281,8 +283,11 @@
       const look = await E.look();
       // The popup opens beside the card, left of the grid's first column. Its skill
       // lines may mention 心情 too ("…干员心情消耗降低14%"), which run 20261101-105407-dcxo
-      // took for the label: match the label alone.
-      const mood = await E.findText(look, /^.?心情$/, [0.05, 0.2, 0.75, 0.6]);
+      // took for the label: match the label alone. A short mood bar reads as part of it
+      // ("②心情一") or hides it from crops, which still read 信赖 a row below (run
+      // 20261110-103923-rxjl), so either label places the name.
+      const label = await E.findText(look, /^.?(心情[一|]?|信赖)$/, [0.05, 0.2, 0.75, 0.6]);
+      const mood = label && { ...label, y: label.y - (/信赖/.test(label.text) ? 28 / 1080 : 0) };
       // Name starts ~245 px left of 心情; exclude the avatar and the room tag below.
       const name = mood ? await E.readText(look.frame,
         [mood.x - 250 / 1920, mood.y - 5 / 1080, 225 / 1920, 30 / 1080], NAME, { assist: true }) : null;
