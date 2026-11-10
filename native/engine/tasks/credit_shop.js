@@ -22,6 +22,7 @@
   const REFRESH = [0.82, 0.89, 0.14, 0.05];
   const REFRESH_COST = [0.87, 0.89, 0.06, 0.05];
   const REFRESHES = /剩余次数[:：]?\s*(\d+)\s*\/\s*(\d+)/;
+  const REFRESH_BAR = [0.55, 0.88, 0.45, 0.07];
   // 购买商品 dialog
   const ITEM_NAME = [0.36, 0.25, 0.2, 0.04];
   const ITEM_OFF = [0.8, 0.32, 0.06, 0.05];
@@ -142,10 +143,11 @@
     return true;
   }
 
+  // Full-frame OCR can miss the grey 剩余次数 (run 20261110-101620-jy7h).
   const refreshesLeft = async look => {
-    const count = E.find(look.texts, REFRESHES)?.text.match(REFRESHES);
+    const count = (await E.findText(look, REFRESHES, REFRESH_BAR))?.text.match(REFRESHES);
     if (count) return Number(count[1]);
-    if (await E.findText(look, '今日刷新次数已用尽', [0.55, 0.88, 0.45, 0.07])) return 0;
+    if (await E.findText(look, '今日刷新次数已用尽', REFRESH_BAR)) return 0;
     return null;
   };
 
