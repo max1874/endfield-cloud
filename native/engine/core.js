@@ -54,13 +54,6 @@
 
   E.log = (...parts) => bridge({ op: 'log', text: parts.map(p => typeof p === 'string' ? p : JSON.stringify(p)).join(' ') }).catch(() => {});
   E.status = text => bridge({ op: 'status', text }).catch(() => {});
-  // Small JSON state kept across runs, next to the run directories.
-  E.store = {
-    async get(name) { const text = await bridge({ op: 'load', path: `state/${name}.json` }); return text ? JSON.parse(text) : null; },
-    set: (name, value) => bridge({ op: 'save', path: `state/${name}.json`, text: JSON.stringify(value, null, 2) }),
-  };
-  // The game day: daily resets come at 04:00 server time (UTC+8).
-  E.gameDay = () => new Date(Date.now() + 4 * 3600000).toISOString().slice(0, 10);
 
   // ---- stream and frames ---------------------------------------------------------
   E.video = () => {
@@ -241,26 +234,13 @@
     await E.assist?.({ what: `read ${read}`, roi, vision: Object.fromEntries(votes) }, { canvas: E.crop(frame, roi, 3), time: frame.time });
     return read;
   };
-  // One text in a small crop; model assist is used only when Vision reads no match.
-  E.readText = async (frame, roi, pattern, { assist = false } = {}) => {
-    for (const scale of [2, 3]) {
-      const hit = E.find(await E.ocr(frame, roi, { scale }), pattern);
-      if (hit) return hit.text;
-    }
-    if (!assist) return null;
-    const read = await assisted(() => E.llm.text(frame, roi, pattern));
-    if (read === null) return null;
-    await E.assist?.({ what: `read 「${read}」`, roi }, { canvas: E.crop(frame, roi, 3), time: frame.time });
-    return read;
-  };
 
   // ---- model assist --------------------------------------------------------------
   // When Vision misses a label or cannot settle a number, a vision model (DeepSeek, on
   // the user's own key; without one nothing changes) answers about the frame. It only
   // reads and finds, never chooses an action, and callers opt in ({ assist }) where a
   // miss would fail the task; reads that choose a purchase (list prices) or that a
-  // purchase, trade or gift is checked against (receipt counts) stay on Vision. An
-  // operator name may be assisted to summon them; the game verifies the gift. The
+  // purchase, trade or gift is checked against (receipt counts) stay on Vision. The
   // runner records each answer with the image the model saw (E.assist).
   // Offline on our frames (2026-10-30): crops read 48 of 50; given Vision's boxes
   // numbered on the frame it picked 10 of 10; its own coordinates (0-1000) landed on
@@ -280,10 +260,6 @@
     return answer;
   };
   E.llm = {
-    async text(frame, roi, pattern) {
-      const answer = await ask(E.crop(frame, roi, 3), '读出这块游戏截图里的文字，只回答原文；看不清就回答“无”。');
-      return answer !== '无' && matches(answer, pattern) ? answer : null;
-    },
     async number(frame, roi) {
       const answer = await ask(E.crop(frame, roi, 3), '这块游戏截图里有一个数字，是多少？只回答阿拉伯数字；看不清就回答“无”。');
       return /^\d+$/.test(answer) ? Number(answer) : null;
@@ -411,8 +387,8 @@
     v.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
     return v;
   };
-  const keyEvent = (v, type, code, modifiers = {}) => v.dispatchEvent(new KeyboardEvent(type, {
-    key: keyName(code), code, keyCode: KEYS[code], which: KEYS[code], bubbles: true, cancelable: true, ...modifiers }));
+  const keyEvent = (v, type, code) => v.dispatchEvent(new KeyboardEvent(type, {
+    key: keyName(code), code, keyCode: KEYS[code], which: KEYS[code], bubbles: true, cancelable: true }));
   E.key = async (code, { hold = 80 } = {}) => {
     if (!KEYS[code]) E.fail(`unknown_key_${code}`);
     const v = prepare();
@@ -424,14 +400,14 @@
   // movementX/Y; zero-delta moves are dropped. Track our cursor to send real deltas.
   let cursor = [0.5, 0.5];
   const point = (v, [x, y]) => { const r = v.getBoundingClientRect(); return { clientX: r.left + r.width * x, clientY: r.top + r.height * y, w: r.width, h: r.height }; };
-  const mouse = (v, type, at, buttons, delta = [0, 0], modifiers = {}) => {
+  const mouse = (v, type, at, buttons, delta = [0, 0]) => {
     const p = point(v, at);
     v.dispatchEvent(new MouseEvent(type, { clientX: p.clientX, clientY: p.clientY, movementX: delta[0], movementY: delta[1],
-      button: 0, buttons, bubbles: true, cancelable: true, ...modifiers }));
+      button: 0, buttons, bubbles: true, cancelable: true }));
   };
   const valid = ([x, y]) => Number.isFinite(x) && Number.isFinite(y) && x >= 0 && x <= 1 && y >= 0 && y <= 1;
   // Move the game cursor along a path so every event carries a real delta.
-  const travel = async (v, to, { buttons = 0, ms = 160, modifiers } = {}) => {
+  const travel = async (v, to, { buttons = 0, ms = 160 } = {}) => {
     const from = cursor, r = point(v, [1, 1]);
     const distance = Math.hypot((to[0] - from[0]) * r.w, (to[1] - from[1]) * r.h);
     const steps = Math.max(2, Math.min(24, Math.round(distance / 25)));
@@ -441,26 +417,13 @@
       const now = [at[0] * r.w, at[1] * r.h];
       let delta = [Math.round(now[0] - previous[0]), Math.round(now[1] - previous[1])];
       if (!delta[0] && !delta[1]) delta = [i % 2 ? 1 : -1, 0];
-      mouse(v, 'mousemove', at, buttons, delta, modifiers);
+      mouse(v, 'mousemove', at, buttons, delta);
       previous = now;
       await E.sleep(ms / steps);
     }
     cursor = to;
   };
   E.move = async (x, y, options) => { if (!valid([x, y])) E.fail('invalid_position'); await travel(prepare(), [x, y], options); };
-  // Turn the world camera by relative mouse motion (dx, dy in screen widths/heights)
-  // without moving the cursor: moves at a fixed point that carry only movementX/Y.
-  // At the app's default mouse sensitivity (8) a full turn is about 5.3 widths;
-  // positive dy looks down.
-  E.turn = async (dx, dy = 0, { ms = 300 } = {}) => {
-    const v = prepare(), r = v.getBoundingClientRect();
-    const total = [dx * r.width, dy * r.height];
-    const steps = Math.max(2, Math.min(24, Math.round(Math.hypot(...total) / 25)));
-    for (let i = 0; i < steps; i++) {
-      mouse(v, 'mousemove', cursor, 0, [Math.round(total[0] / steps), Math.round(total[1] / steps)]);
-      await E.sleep(ms / steps);
-    }
-  };
   E.wheel = async deltaY => {
     const v = prepare(), p = point(v, cursor);
     v.dispatchEvent(new WheelEvent('wheel', { deltaY, deltaMode: 0, clientX: p.clientX, clientY: p.clientY, bubbles: true, cancelable: true }));
@@ -468,21 +431,14 @@
   // Park the cursor where it does not cover or tilt the UI (the main menu has a
   // cursor parallax), then let the screen settle.
   E.park = async ({ at = [0.5, 0.5], settle = 400 } = {}) => { await E.move(...at); await E.sleep(settle); };
-  E.click = async (x, y, { hold = 80, alt = false } = {}) => {
+  E.click = async (x, y, { hold = 80 } = {}) => {
     if (!valid([x, y])) E.fail('invalid_position');
     const v = prepare();
-    if (alt) { keyEvent(v, 'keydown', 'AltLeft', { altKey: true }); await E.sleep(200); }
-    try {
-      await travel(v, [x, y], { modifiers: alt ? { altKey: true } : undefined });
-      await E.sleep(40);
-      mouse(v, 'mousedown', [x, y], 1, [0, 0], alt ? { altKey: true } : undefined);
-      try { await E.sleep(hold); } finally { mouse(v, 'mouseup', [x, y], 0, [0, 0], alt ? { altKey: true } : undefined); }
-    } finally {
-      if (alt) { await new Promise(r => setTimeout(r, 80)); keyEvent(v, 'keyup', 'AltLeft'); }
-    }
+    await travel(v, [x, y]);
+    await E.sleep(40);
+    mouse(v, 'mousedown', [x, y], 1);
+    try { await E.sleep(hold); } finally { mouse(v, 'mouseup', [x, y], 0); }
   };
-  // In-world HUD buttons only take clicks while Alt shows the cursor.
-  E.altClick = (x, y, options) => E.click(x, y, { ...options, alt: true });
   // Press, move with real deltas, release. Never use on item grids: dragging an item
   // there moves it between containers.
   E.drag = async (from, to, { ms = 500 } = {}) => {

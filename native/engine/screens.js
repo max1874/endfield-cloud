@@ -133,7 +133,7 @@
   };
 
   // I may be unavailable in some world locations. Retry once from the ship's
-  // contact-kiosk teleport anchor, sharing the same route as operator gifts.
+  // contact-kiosk teleport anchor.
   E.openControlNexus = async t => {
     await E.key('KeyI');
     try {

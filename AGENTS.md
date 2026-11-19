@@ -28,9 +28,10 @@ A task that cannot produce the record is not done.
 UI strings and failure cases. Do not copy its code, pipeline JSON, images,
 coordinates or ROIs into this repository, and do not run it as a dependency.
 Recognition templates are captured from our own stream. One exception (Max,
-2026-10-23): MaaEnd's MapLocator floor plans may be copied unchanged into
-`maps/`, each listed with its source in `maps/README.md`. The repository is public
-and licensed under AGPL-3.0 (`LICENSE`, Max 2026-10-27), which these files require.
+2026-10-23): MaaEnd's MapLocator floor plans may be copied unchanged, each listed
+with its source. The only one in use left with 赠送干员礼物 (removed 2026-11-19);
+`build.rs` bundles none now. The repository is public and licensed under AGPL-3.0
+(`LICENSE`, Max 2026-10-27).
 
 ## Runtime
 

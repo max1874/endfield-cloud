@@ -44,8 +44,8 @@
     await E.nav.to('world', null);
     await E.key('KeyM');
     let look = await E.waitFor('map', { timeout: 10000 });
-    // A region map opens the overview with 地区总览. The 帝江号 map has none (operator_gifts
-    // teleports to its kiosk; run 20261029-203335-p99c); its corner card naming the
+    // A region map opens the overview with 地区总览. The 帝江号 map has none (run
+    // 20261029-203335-p99c); its corner card naming the
     // region ("▸▸武陵") opens the overview directly (run 20261030-113903-m7yt).
     const entry = await E.findText(look, '地区总览', OVERVIEW) ?? await E.findText(look, /(四号谷地|武陵)$/, REGION_CARD);
     if (!entry) E.fail('map_without_地区总览');

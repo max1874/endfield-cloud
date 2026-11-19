@@ -57,7 +57,6 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 - 拜访好友 生产助力/情报交流 [VisitFriends]
 - 生态农场 via map [AutoEcoFarm]
 - 转交委托, modes without auto-delivery [DeliveryJobs]
-- 赠送干员礼物 [GiftOperator] — spends a gift
 - 简易制作 [Crafting] — spends materials
 
 **Phase 3, weekly and on demand**
@@ -82,6 +81,8 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 - Agreed with Max (2026-10-22): RealTimeTask (real-time combat assist), PuzzleSolver and
   AeroSalvage (minigames), BatchAddFriends (risk control), ImportBluePrints,
   IntelArchive (external site).
+- 赠送干员礼物 [GiftOperator]: built, then removed (Max, 2026-11-19: it kept failing;
+  walking to the kiosk and between operators was never reliable).
 
 ## Standing constraints
 
@@ -111,11 +112,6 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
   none are left.
 - Order (Max, 2026-10-22): the 信用 earners run before 信用点购物: 拜访好友 (生产助力,
   情报交流) and 会客室 gifts first, then the shop spends the day's 信用.
-- 赠送干员礼物 (Max, 2026-10-22): do not take the gifts operators offer (cards with
-  a gift icon are skipped; a 收下礼物 dialog is left with 暂时离开). Each day pick the
-  1–3 operators with the lowest 信赖度 below 200% and give each one batch in a single
-  confirm: 3 of a gift they like, or, with none they like in stock, 30 of another
-  gift. Then that operator is done for the day.
 - Never drag item contents (warehouse/backpack); never delete, decompose or sell
   anything Max has not configured.
 - If Max plays and consumes a daily state, that task waits for the next reset.
@@ -147,7 +143,7 @@ Order follows value and dependency. MaaEnd name in brackets for reference.
 | 会客室 线索赠予/交流 (`clue_exchange`) | partial | one gift by hand 2026-10-22 12:53 (寂语修会的线索 05: stock 2 → 1, 获得奖励 信用 40, 信用 148 → 188); task's `nothing_to_do` live (`20261022-125737-c4ol`: all 7 types read, 3 at 1, 4 greyed at 0; 线索交流 running, 03:53:50 left). 快速赠予重复线索 stayed disabled with a duplicate. 16:52: the ended exchange shows 情报交流结束 (额外奖励 信用 90, 6 friends, 确认; Esc does not close it), now confirmed by the task or by navigation (`20261022-165414-w9nx`, hot-loaded); a new exchange needs all 7 types on the board (集齐所有线索可开展情报交流, base reward 400), only 3 placed. Next: gift path when a type reaches 2; start 线索交流 once the board is full (快速填入 not yet seen enabled) 2026-10-23 `20261023-105117-x9sk`: a lost card click sent 寂语修会的线索 instead of 塞什卡的, its last one (stock 1 → 0, against the keep-1 rule); 赠予 now waits until the card shows selected (yellow frame), and `20261023-110356-3a3v` gave 塞什卡的线索 2 → 1 through that check 2026-11-04 `20261104-091033-kn0q`: received 90 信用 and gifted 塞什卡 2 → 1 for 30 信用, then the model picked the incomplete-board hint as a start button. The debug app now distinguishes the saved incomplete and ready frames without the model. Live retest pending. |
 | 信用点购物 (`credit_shop`) | partial | hot-loaded runs 2026-10-22: 收取信用 through the task in run `20261022-141756-5l6m` (获得奖励 信用 360, 188 → 548; then failed on the unknown 无待领取信用 state, now recognized); `-141937-4qqb` bought both −75% cards (折金票 ×2000 for 35: 548 → 513; 武器检查单元 ×30 for 22: 513 → 491); `-142237-upa1` refreshed (80: 491 → 411, 次数 4 → 3) and bought the new −75% 折金票 (411 → 376); `-142427-298f` passed: 嵌晶玉 ×25 at −25% for 300 信用 (376 → 76; 嵌晶玉 23735 → 23760 on the menu), then stopped at refresh cost 120 > 76. bundled build run `20261022-142628-rr5m` (session start → credit_shop → clue_exchange → session exit): `nothing_to_do`, refresh 120 > 信用 76. bundled build run `20261022-164526-18ty` passed after 拜访好友: refresh 120 (426 → 306, 次数 3 → 2), 嵌晶玉 ×25 for 300 (306 → 6), stopped at refresh 160 > 6. Next: the collect path through the bundled build after the 04:00 reset |
 | 拜访好友 (`visit_friends`) | partial | hot-loaded runs 2026-10-22: `20261022-164345-lni9` passed: 4 情报交流 at 4 friends through the task (count 4 → 0, 信用 +50 each, 226 → 426), visit ended back to the world. 生产助力 through the task only once (`-163829-3llv`: 制造舱 II, count 3 → 2, 信用 166 → 186); the other presses were lost because the cursor left right after the click, now delayed; earlier assists by hand. bundled build run `20261022-165527-8wi8` (session start → visit_friends → clue_exchange → exit): entered a friend's ship, read 0/0 left, ended the visit → `nothing_to_do`. Next: 生产助力 through the fixed task after the 04:00 reset 2026-10-23: both 每日全部 runs failed at 总控中枢 after the count dropped: its button becomes a wide "心情恢复 … 已助力" bar with the mark at the card's right end; the mark is now searched across the card (changed, unverified) `20261023-112312-n9vn` passed: 总控中枢 已助力 recognized across the card, 4 情报交流 and 1 生产助力 (信用 21 → 241) |
-| 赠送干员礼物 (`operator_gifts`) | partial | hot-loaded runs 2026-10-23: `20261023-101436-jek6` gave 诀 3 黑森林浆果酱 (9 → 6, 信赖度 107% → 112%), then failed to reach the next operator; `20261023-101708-oo81` passed: 噗切娜 ← 3 塞梦珂披巾 (79 → 76, 108% → 108%, the bar moved inside the percent), 赛希 ← 3 星门锁 (145 → 142, 110% → 114%); 提弗洛斯 not reached in 3 rounds because a talk leaves the camera looking down, fixed by levelling the camera before each approach (hot-loaded check: 提弗洛斯 reached and talk opened at 110%, nothing given). Walking uses the minimap located on MaaEnd's floor plan (`maps/`); kiosk reached from the anchor and from the hall. Open: the bundled build has not run the task (today's 3 are done; next run after the 04:00 reset); a second run on the same day would gift up to 3 more operators |
+| 赠送干员礼物 (`operator_gifts`) | removed | Max 2026-11-19: kept failing (walking to the 干员联络台 and between operators). Gifts were given only by hot-loaded source (2026-10-23); see git history before this removal |
 | 生态农场 · 存仓 (`eco_farm`) | partial | 2026-10-29 probes on the debug build (player in 四号谷地): map → 地区总览 → 武陵 → 祀的画 lands on the same map position twice; both icons sit under overlapping markers and open a name list first. 自动农植机 needed 3 presses of 存至武陵仓库 (18 full slots refilled twice from its backlog; 获得奖励 each time) until empty with 自动育苗、自动收获中; 牧场 one press (8 goods 210/420 → 暂无产出). Screenshots `artifacts/acceptance-20261029-eco-farm/`. Hot-loaded task run `20261029-132859-4x64` failed to pick 牧场 from the list (fixed); the next run read both as empty → `nothing_to_do`. `20261029-141245-1nrh` (session start → task → exit) passed: 牧场 8 goods (10/20) → 暂无产出, 获得奖励 120 total; 农植机 empty. The slot read missed one tile (7 read), so the record now carries the reward total. Added the 武陵城 自动农植机 (level 4 MAX, at 实验作业试点区, north of where the 武陵城 map opens: the task drags the map down and matches the icon on the whole map; its panel opens directly and must name 武陵城): runs `20261029-142232-gbn3` and `-142356-5e7x` found it at the same spot (score 0.81) and read all three facilities empty → `nothing_to_do`. Open: the 农植机 store loop through the task (seen only in probes), a full 武陵 warehouse, starting from inside 武陵 |
 | 模拟空间奖励 | nothing to claim | 行动手册 → 模拟: 四号谷地 26/26, 武陵 23/23 complete (2026-10-22); revisit when a game update adds simulations |
 | 资源回收站 | deferred | low priority (Max) |
