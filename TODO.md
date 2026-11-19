@@ -76,20 +76,10 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 
 - **Trigger:** any 每日全部 run on v0.2.4 or later.
 - **Check:** in the run's results:
-  - `operator_gifts` note "talk did not open (left?)" and the task going on;
   - `dijiang_collect` / `clue_exchange` note "I left the world open", a frame
     `nexus-unavailable-here`, the kiosk teleport and the 总控中枢 opening on the
     second I.
 - **Done when:** each path is seen passing once, or fails with its own item.
-
-### Contact kiosk prompt not found — added 2026-10-27
-
-- **Trigger:** `operator_gifts` fails `kiosk_prompt_not_found` again (tester account,
-  run `20261027-192412-3g3r`: minimap placed the player at (182,180), next to the kiosk,
-  but the frame `000-kiosk-not-reached.png` shows a doorway with no prompt; the same
-  account reached it in run `20261027-162543-18ze`).
-- **Check:** the walk log (`operator_gifts walk …`) and the frame.
-- **Done when:** the cause is known and the walk handles it.
 
 ### Browser error "The object is in an invalid state." — added 2026-10-27
 
@@ -128,9 +118,7 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
   运行：每日全部 from the home page, then read `automation/<run>/summary.json` and
   each task's frames. Paths not yet seen live:
   - `dijiang_collect`: a second press on an entry that still opens 获得奖励;
-  - `stockpile`: a price the 市场 list leaves unread, read from its 购买物资 dialog;
-  - `operator_gifts`: a bundled-build run that gives gifts (the 2026-10-23 gifts
-    were given by hot-loaded source; the bundled runs only hit the daily cap).
+  - `stockpile`: a price the 市场 list leaves unread, read from its 购买物资 dialog.
 - **Done when:** one run ends with every task passed or nothing_to_do and the
   session exited, the GOAL.md ledger rows are updated, and no crash report
   (`~/Library/Logs/DiagnosticReports/endfield-cloud-prototype-*.ips`) appears.
@@ -148,7 +136,7 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 - **Trigger:** a session where Max has the app window focused (an agent cannot take
   focus: `activate` and `open` leave another app frontmost).
 - **Check:** with the window focused and the game in the world, run 引擎自检 and one
-  walking task (`operator_gifts`); before `f34b767` the engine's `exitPointerLock`
+  task that starts in the world (`eco_farm`); before `f34b767` the engine's `exitPointerLock`
   reached the game as Escape and opened the menu.
 - **Done when:** both pass with the window focused and no menu opens unasked.
 

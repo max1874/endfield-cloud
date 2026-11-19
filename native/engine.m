@@ -282,12 +282,6 @@ static NSArray *RecognizeText(NSData *image, BOOL fast, BOOL digits, NSError **e
             BOOL ok = [data writeToURL:url atomically:YES];
             dispatch_async(dispatch_get_main_queue(), ^{ ok ? reply(url.path, nil) : reply(nil, @"write_failed"); });
         });
-    } else if ([op isEqualToString:@"load"]) {
-        // A text file saved earlier; null when there is none.
-        NSURL *url = ArtifactURL(body[@"path"]);
-        if (!url) { reply(nil, @"bad_load"); return; }
-        NSString *text = [NSString stringWithContentsOfURL:url encoding:NSUTF8StringEncoding error:nil];
-        reply(text ?: NSNull.null, nil);
     } else if ([op isEqualToString:@"status"]) {
         NSString *text = [body[@"text"] isKindOfClass:NSString.class] ? body[@"text"] : @"";
         message.webView.window.title = text.length ? [@"云终末地 · " stringByAppendingString:text] : @"云终末地";
