@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>云终末地设置</title>
+<style>
+  /* Our own rendition of the official site's visual language (endfield.hypergryph.com):
+     white ground, a narrow white rail whose active item is a black block, flat
+     Endfield yellow bands, black-tag / grey-value pairs, [ bracketed ] titles,
+     hatched outline lettering and crosshair marks. No artwork or logos of theirs. */
+  :root {
+    --ink: #141414;
+    --ink-2: #3b3b3b;
+    --mute: #8a8a8a;
+    --line: #dedede;
+    --ground: #f3f3f1;
+    --white: #ffffff;
+    --grey: #e9e9e7;
+    --yellow: #fff100;
+    --alert: #e8412c;
+    --display: "Avenir Next Condensed", "Helvetica Neue", sans-serif;
+    --mono: "SF Mono", ui-monospace, Menlo, monospace;
+    --sans: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    display: grid; grid-template-columns: 188px 1fr;
+    font: 13px/1.5 var(--sans); color: var(--ink); background: var(--white);
+    -webkit-user-select: none; user-select: none; cursor: default; overflow: hidden;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .drag { position: fixed; top: 0; left: 0; right: 0; height: 30px; z-index: 5; }
+
+  /* ---- rail ---------------------------------------------------------------- */
+  .rail { position: relative; display: flex; flex-direction: column; padding-top: 50px; background: var(--white); border-right: 1px solid var(--line); }
+  .brand { display: grid; grid-template-columns: 34px 1fr; column-gap: 10px; align-items: center; padding: 0 18px 22px; }
+  .brand .mark { grid-row: span 2; width: 34px; height: 34px; background: var(--ink); position: relative; }
+  .brand .mark::after { content: ""; position: absolute; left: 9px; top: 9px; width: 16px; height: 16px; background: var(--yellow); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+  .brand b { font-size: 15px; font-weight: 700; letter-spacing: .06em; line-height: 1.2; }
+  .brand small { font: 600 10px/1.2 var(--display); letter-spacing: .16em; color: var(--mute); }
+  nav { display: flex; flex-direction: column; }
+  nav button {
+    display: grid; grid-template-columns: 24px 1fr; align-items: center; text-align: left;
+    height: 48px; padding: 0 16px 0 18px; border: 0; background: none; color: #9a9a9a; position: relative;
+    transition: color .12s, background .12s;
+  }
+  nav button .n { font: 600 11px var(--mono); }
+  nav button .t { font-size: 14px; font-weight: 600; }
+  nav button .e { position: absolute; right: 14px; font: 600 9px var(--display); letter-spacing: .14em; opacity: 0; transition: opacity .12s; }
+  nav button:hover { color: var(--ink); background: var(--ground); }
+  nav button[aria-current="page"] { color: var(--white); background: var(--ink); }
+  nav button[aria-current="page"] .n { color: var(--yellow); }
+  nav button[aria-current="page"] .e { opacity: .55; }
+  nav button[aria-current="page"]::after { content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 4px; background: var(--yellow); }
+  .rail-foot { margin-top: auto; padding: 0 18px 16px; }
+  .rail-foot .bar { display: flex; gap: 3px; margin-bottom: 10px; }
+  .rail-foot .bar i { height: 4px; flex: 1; background: var(--grey); }
+  .rail-foot .bar i:first-child { flex: 3; background: var(--ink); }
+  .rail-foot .bar i:nth-child(2) { background: var(--yellow); }
+  .rail-foot p { font: 9px/1.7 var(--mono); letter-spacing: .1em; color: var(--mute); }
+
+  /* ---- content ------------------------------------------------------------- */
+  main { position: relative; overflow-y: auto; background: var(--ground); }
+  .band { position: relative; display: flex; align-items: flex-end; justify-content: space-between; height: 112px; padding: 0 36px 16px; background: var(--yellow); overflow: hidden; }
+  .band .kicker { font: 600 11px var(--display); letter-spacing: .18em; }
+  .band h1 { font: 800 40px/0.95 var(--display); letter-spacing: .01em; text-transform: uppercase; }
+  .band .zh { margin-left: 4px; font-size: 18px; font-weight: 700; letter-spacing: .1em; }
+  .band .zh::before { content: "[ "; font-weight: 300; }
+  .band .zh::after { content: " ]"; font-weight: 300; }
+  .band .count { font: 600 12px var(--mono); text-align: right; }
+  .band .count span { display: block; width: 96px; height: 4px; margin-top: 6px; background: rgba(20,20,20,.18); position: relative; }
+  .band .count span i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink); }
+  .band .stripes { position: absolute; right: 0; top: 0; width: 140px; height: 26px; background: repeating-linear-gradient(-60deg, var(--ink) 0 2px, transparent 2px 9px); opacity: .18; }
+  /* Hatched outline lettering, pinned to the window's bottom edge behind the content. */
+  .ghost {
+    position: fixed; right: -4px; bottom: -34px; z-index: 0; font: 800 132px/1 var(--display); text-transform: uppercase; letter-spacing: -.02em;
+    color: transparent; -webkit-text-stroke: 1px #dcdcd9; pointer-events: none; white-space: nowrap;
+    background: repeating-linear-gradient(-45deg, #e4e4e1 0 1px, transparent 1px 7px); -webkit-background-clip: text; background-clip: text;
+  }
+  .body { position: relative; z-index: 1; padding: 8px 36px 120px; }
+  .field { position: relative; display: grid; grid-template-columns: 156px minmax(0, 1fr); gap: 28px; padding: 22px 0; border-bottom: 1px solid var(--line); }
+  .field:last-child { border-bottom: 0; }
+  .field::before, .field::after { content: "+"; position: absolute; bottom: -9px; font: 300 14px/1 var(--mono); color: #b8b8b5; }
+  .field::before { left: -18px; } .field::after { right: -18px; }
+  .field:last-child::before, .field:last-child::after { display: none; }
+  .tag { display: inline-flex; height: 24px; }
+  .tag b { display: inline-flex; align-items: center; padding: 0 10px; background: var(--ink); color: var(--white); font-size: 12px; font-weight: 600; }
+  .tag span { display: inline-flex; align-items: center; padding: 0 10px; background: var(--grey); font: 600 11px var(--mono); }
+  .field .desc { margin-top: 10px; color: var(--mute); font-size: 12px; line-height: 1.65; }
+  kbd { font: 11px var(--mono); padding: 0 4px; border: 1px solid var(--line); background: var(--white); color: var(--ink-2); }
+
+  /* size tiles */
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .tile { position: relative; text-align: left; padding: 10px 12px; min-height: 56px; border: 1px solid var(--line); background: var(--white); transition: border-color .12s, background .12s; }
+  .tile b { display: block; font: 700 17px/1.1 var(--display); letter-spacing: .02em; white-space: nowrap; }
+  .tile small { display: block; margin-top: 3px; font-size: 11px; color: var(--mute); }
+  .tile:hover:not(:disabled) { border-color: var(--ink); }
+  .tile[aria-checked="true"] { background: var(--yellow); border-color: var(--yellow); }
+  .tile[aria-checked="true"] small { color: var(--ink-2); }
+  .tile[aria-checked="true"]::after { content: ""; position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; background: var(--ink); clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+  .tile:disabled { cursor: not-allowed; color: #b3b3b0; background: repeating-linear-gradient(-45deg, #efefec 0 5px, #f7f7f5 5px 10px); }
+  .tile:disabled small { color: #b3b3b0; }
+  .readout { display: flex; margin-top: 10px; }
+  .readout .tag + .tag { margin-left: 6px; }
+
+  /* option pairs: black = chosen, grey = the rest (the site's tag pairs) */
+  .opts { display: inline-flex; gap: 2px; }
+  .opts button { min-width: 52px; height: 30px; padding: 0 12px; border: 0; background: var(--grey); font: 700 13px var(--display); letter-spacing: .04em; transition: background .12s, color .12s; }
+  .opts button:hover:not([aria-checked="true"]) { background: #dcdcd9; }
+  .opts button[aria-checked="true"] { background: var(--ink); color: var(--yellow); }
+  .opts.zh button { font: 600 12px var(--sans); }
+  .hint { margin-top: 8px; font-size: 11px; color: var(--mute); }
+
+  /* daily checklist */
+  .list { background: var(--white); border: 1px solid var(--line); }
+  .row { display: grid; grid-template-columns: 30px 1fr 18px; align-items: center; width: 100%; height: 36px; padding: 0 12px; border: 0; border-top: 1px solid #efefed; background: none; text-align: left; }
+  .row:first-child { border-top: 0; }
+  .row:hover { background: #fbfbf9; }
+  .row .n { font: 600 11px var(--mono); color: var(--mute); }
+  .row .box { width: 16px; height: 16px; border: 1.5px solid var(--ink); display: grid; place-items: center; }
+  .row[aria-checked="true"] .box { background: var(--ink); }
+  .row[aria-checked="true"] .box::after { content: ""; width: 8px; height: 4px; border: solid var(--yellow); border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
+  .row[aria-checked="true"] .n { color: var(--ink); }
+  .row[aria-checked="false"] .t { color: #a5a5a2; }
+  .list-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+  .link { border: 0; background: none; padding: 0; font-size: 12px; font-weight: 600; box-shadow: inset 0 -6px 0 var(--yellow); }
+
+  /* buttons and inputs */
+  .btns { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .btn { position: relative; height: 34px; padding: 0 18px 0 20px; border: 0; background: var(--ink); color: var(--white); font-size: 13px; font-weight: 600; transition: background .12s; }
+  .btn::before { content: ""; position: absolute; left: 8px; top: 10px; bottom: 10px; width: 3px; background: var(--yellow); }
+  .btn:hover:not(:disabled) { background: #2d2d2d; }
+  .btn.light { background: var(--grey); color: var(--ink); }
+  .btn.light::before { background: var(--ink); }
+  .btn.light:hover:not(:disabled) { background: #dcdcd9; }
+  .btn.go { padding-left: 46px; }
+  .btn.go::before { left: 0; top: 0; bottom: 0; width: 34px; }
+  .btn.go::after { content: ""; position: absolute; left: 13px; top: 12px; border: 5px solid transparent; border-left: 8px solid var(--ink); }
+  .btn:disabled { opacity: .35; cursor: default; }
+  .input { display: flex; align-items: center; height: 36px; margin-bottom: 10px; background: var(--white); border: 1px solid var(--line); }
+  .input span { align-self: stretch; display: inline-flex; align-items: center; padding: 0 10px; background: var(--ink); color: var(--white); font: 700 11px var(--display); letter-spacing: .14em; }
+  .input input { flex: 1; height: 100%; border: 0; background: none; outline: none; padding: 0 12px; font: 13px var(--mono); -webkit-user-select: text; user-select: text; }
+  .input:focus-within { border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--yellow); }
+  .note { margin-top: 12px; padding: 10px 12px; background: var(--white); border-left: 4px solid var(--yellow); }
+  .note.bad { border-left-color: var(--alert); }
+  .note b { display: block; font-size: 13px; }
+  .note span { font-size: 12px; color: var(--ink-2); }
+
+  .about { padding: 26px 0 22px; border-bottom: 1px solid var(--line); }
+  .about .word { font: 800 34px/1 var(--display); letter-spacing: .08em; }
+  .about .word::after { content: ""; display: block; width: 72px; height: 4px; margin-top: 10px; background: linear-gradient(90deg, var(--ink) 0 50%, var(--yellow) 50%); }
+  .about p { margin-top: 10px; font: 600 11px var(--mono); letter-spacing: .12em; color: var(--mute); }
+
+  .toast { position: fixed; left: calc(188px + 36px); bottom: 18px; display: flex; height: 32px; opacity: 0; transform: translateY(6px); transition: opacity .2s, transform .2s; pointer-events: none; }
+  .toast b { display: inline-flex; align-items: center; padding: 0 10px; background: var(--alert); color: var(--white); font: 700 11px var(--display); letter-spacing: .12em; }
+  .toast span { display: inline-flex; align-items: center; padding: 0 12px; background: var(--ink); color: var(--white); font-size: 12px; }
+  .toast.show { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+  <div class="drag" data-tauri-drag-region></div>
+  <aside class="rail">
+    <div class="brand"><i class="mark"></i><b>云终末地</b><small>ENDFIELD CLOUD</small></div>
+    <nav id="nav" aria-label="设置分区"></nav>
+    <div class="rail-foot">
+      <div class="bar"><i></i><i></i><i></i></div>
+      <p id="build">SETTINGS</p>
+    </div>
+  </aside>
+  <main id="main" aria-live="polite"></main>
+  <div class="toast" id="toast" role="status"><b>NOTICE</b><span></span></div>
+<script>
+const invoke = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args);
+const PANES = [
+  ['display', '画面', 'Display'],
+  ['control', '操作', 'Control'],
+  ['automation', '自动化', 'Automation'],
+  ['assist', '模型兜底', 'Assist'],
+  ['about', '关于', 'About'],
+];
+const ERRORS = {
+  width_unavailable: '这个尺寸当前不可用',
+  bad_daily: '每日全部至少要保留一项任务',
+};
+let state = null, pane = 'display', keyDraft = '', keyResult = null, busy = false;
+const pad = n => String(n).padStart(2, '0');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const $ = id => document.getElementById(id);
+
+function toast(text) {
+  const t = $('toast');
+  t.querySelector('span').textContent = text; t.classList.add('show');
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+async function call(cmd, args) {
+  try { state = await invoke(cmd, args); render(); return true; }
+  catch (error) { toast(ERRORS[error] || `没能完成：${error}`); render(); return false; }
+}
+const set = (key, value) => call('settings_set', { key, value });
+const act = action => call('settings_action', { action });
+
+const tag = (label, value) => `<span class="tag"><b>${label}</b>${value === undefined ? '' : `<span>${value}</span>`}</span>`;
+const field = (label, desc, body) =>
+  `<section class="field"><div>${tag(label)}${desc ? `<p class="desc">${desc}</p>` : ''}</div><div>${body}</div></section>`;
+const opts = (name, choices, current, zh) => `<div class="opts ${zh ? 'zh' : ''}" role="radiogroup">${choices.map(([value, label]) =>
+  `<button role="radio" aria-checked="${value === current}" data-set="${name}" data-value='${JSON.stringify(value)}'>${label}</button>`).join('')}</div>`;
+
+const VIEWS = {
+  display() {
+    const v = state.viewport, why = { screen: '屏幕放不下', resolution: '画面低于 1080P' };
+    const tiles = v.sizes.map(s => `<button class="tile" role="radio" aria-checked="${s.width === v.current && !v.fullscreen}"
+        ${s.unavailable || v.fullscreen ? 'disabled' : ''} data-set="windowWidth" data-value="${s.width}">
+        <b>${s.width} × ${s.height}</b><small>${s.unavailable ? why[s.unavailable] : s.default ? '默认' : '&nbsp;'}</small></button>`).join('');
+    return field('全屏', '画面保持 16:9 居中，屏幕比例不同时上下或左右留黑边，自动化照常运行。也可以用 <kbd>⌃⌘F</kbd>。',
+        opts('fullscreen', [[false, '窗口'], [true, '全屏']], v.fullscreen, true))
+      + field('窗口大小', `窗口固定为 16:9，只能在这里选。${v.fullscreen ? '全屏时不能改，先切回窗口。' : ''}`,
+        `<div class="tiles" role="radiogroup" aria-label="窗口大小">${tiles}</div>
+         <div class="readout">${tag('画面', '1920 × 1080')}${tag('比例', '16 : 9')}</div>
+         <p class="hint">云游戏画面最高 1920 × 1080，窗口调大只是放大显示，不会更清晰。</p>`);
+  },
+  control() {
+    const s = state.settings;
+    return field('鼠标灵敏度', '游戏锁定鼠标、转动视角时，鼠标移动乘以这个倍数。',
+        `${opts('sensitivity', state.sensitivities.map(n => [n, `${n}×`]), s.sensitivity)}<p class="hint">默认 8×，下次锁定鼠标时生效。</p>`)
+      + field('声音', '关闭游戏的全部声音。菜单「游戏 → 静音」或 <kbd>⇧⌘M</kbd> 也能切换。',
+        opts('muted', [[false, '开'], [true, '静音']], s.muted, true));
+  },
+  automation() {
+    const chosen = new Set(state.settings.daily);
+    const rows = state.dailyTasks.map((t, i) => `<button class="row" role="checkbox" aria-checked="${chosen.has(t.id)}" data-task="${t.id}">
+      <span class="n">${pad(i + 1)}</span><span class="t">${esc(t.title)}</span><span class="box"></span></button>`).join('');
+    return field('每日全部', '「自动化 → 运行：每日全部」依次运行勾选的任务。顺序固定：先收取、赚信用，再花信用和调度券，最后领日常奖励。',
+      `<div class="list">${rows}</div>
+       <div class="list-foot">${tag('已选', `${pad(chosen.size)} / ${pad(state.dailyTasks.length)}`)}
+       ${chosen.size < state.dailyTasks.length ? '<button class="link" data-all>全部勾选</button>' : ''}</div>`);
+  },
+  assist() {
+    const tail = state.assistKey;
+    const result = keyResult ? `<div class="note ${keyResult.saved ? '' : 'bad'}"><b>${esc(keyResult.title)}</b><span>${esc(keyResult.detail)}</span></div>` : '';
+    return field('DeepSeek Key', 'Vision 认不出按钮或读不准数字时，用你自己的 Key 请模型帮忙看。它只读字、找位置，不替你做选择；费用记在你的 DeepSeek 账户。',
+        `<div style="margin-bottom:14px">${tag('状态', tail ? `已设置 …${esc(tail)}` : '未设置')}</div>
+         <label class="input"><span>KEY</span><input id="key" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false" value="${esc(keyDraft)}"></label>
+         <div class="btns"><button class="btn" data-save ${busy || !keyDraft.trim() ? 'disabled' : ''}>${busy ? '验证中…' : '验证并保存'}</button>
+         ${tail ? '<button class="btn light" data-clear>清除</button>' : ''}</div>${result}
+         <p class="hint">在 platform.deepseek.com → API Keys 新建并复制。保存前会查一次余额确认可用，不收费。</p>`)
+      + field('自检', '在当前游戏画面上让模型认一次字、读一次数。需要已进入游戏，会产生少量费用。',
+        `<div class="btns"><button class="btn go" data-check ${tail ? '' : 'disabled'}>运行自检</button></div>
+         <p class="hint">结果显示在游戏窗口顶部的提示条上。</p>`);
+  },
+  about() {
+    const u = state.update;
+    const status = u.debug ? '调试版不检查更新。' : u.detail ? `${u.detail}。` : '每 10 分钟自动检查一次。';
+    return `<section class="about"><div class="word">ENDFIELD CLOUD</div><p>云终末地 · VERSION ${esc(state.version)}${u.debug ? ' · DEBUG' : ''}</p></section>`
+      + field('更新', status,
+        `<div class="btns"><button class="btn light" data-update ${u.debug ? 'disabled' : ''}>检查更新</button>
+         ${u.ready ? '<button class="btn go" data-install>重启并更新</button>' : ''}</div>`)
+      + field('运行记录', '每次自动化运行的前后截图、识别到的变化和结论。',
+        `<div class="btns"><button class="btn light" data-records>在访达中打开</button></div>`)
+      + field('许可', '非官方客户端，按 AGPL-3.0 开源。游戏画面与内容的版权归其权利人所有。', '');
+  },
+};
+
+function render() {
+  if (!state) return;
+  const i = Math.max(0, PANES.findIndex(p => p[0] === pane)), [, zh, en] = PANES[i];
+  $('nav').innerHTML = PANES.map(([id, title, tag], n) =>
+    `<button data-pane="${id}" ${n === i ? 'aria-current="page"' : ''}><span class="n">${pad(n + 1)}</span><span class="t">${title}</span><span class="e">${tag.toUpperCase()}</span></button>`).join('');
+  $('build').innerHTML = `VER ${esc(state.version)}${state.update.debug ? ' · DEBUG' : ''}<br>SETTINGS // 16:9`;
+  const focused = document.activeElement?.id === 'key';
+  $('main').innerHTML = `<div class="band"><div><div class="kicker">ENDFIELD CLOUD · SETTINGS</div><h1>${en}<span class="zh">${zh}</span></h1></div>
+      <div class="count">${pad(i + 1)} / ${pad(PANES.length)}<span><i style="width:${(i + 1) / PANES.length * 100}%"></i></span></div><i class="stripes"></i></div>
+    <div class="ghost" aria-hidden="true">${en}</div><div class="body">${VIEWS[pane]()}</div>`;
+  document.title = `云终末地设置 · ${zh}`;
+  if (focused) { const k = $('key'); k.focus(); k.setSelectionRange(k.value.length, k.value.length); }
+}
+
+window.showPane = p => {
+  pane = PANES.some(x => x[0] === p) ? p : localStorage.getItem('pane') || 'display';
+  localStorage.setItem('pane', pane);
+  $('main').scrollTop = 0;
+  render();
+};
+window.refresh = () => call('settings_get');
+
+document.addEventListener('click', async e => {
+  const b = e.target.closest('button');
+  if (!b || b.disabled) return;
+  const d = b.dataset;
+  if (d.pane) return window.showPane(d.pane);
+  if (d.set) return b.getAttribute('aria-checked') === 'true' || set(d.set, JSON.parse(d.value));
+  if (d.task) {
+    const chosen = new Set(state.settings.daily);
+    chosen.has(d.task) ? chosen.delete(d.task) : chosen.add(d.task);
+    return set('daily', state.dailyTasks.map(t => t.id).filter(id => chosen.has(id)));
+  }
+  if ('all' in d) return set('daily', state.dailyTasks.map(t => t.id));
+  if ('clear' in d) { keyResult = null; return act('assistClear'); }
+  if ('check' in d) { if (await act('assistCheck')) toast('已开始自检，结果看游戏窗口顶部'); return; }
+  if ('update' in d) return act('updateCheck');
+  if ('install' in d) return act('updateInstall');
+  if ('records' in d) return act('revealRecords');
+  if ('save' in d) {
+    busy = true; keyResult = null; render();
+    try { keyResult = await invoke('assist_save_key', { key: keyDraft.trim() }); if (keyResult.saved) keyDraft = ''; }
+    catch (error) { keyResult = { saved: false, title: '没能保存', detail: String(error) }; }
+    busy = false;
+    return window.refresh();
+  }
+});
+document.addEventListener('input', e => {
+  if (e.target.id !== 'key') return;
+  keyDraft = e.target.value;
+  const save = document.querySelector('[data-save]');
+  if (save && !busy) save.disabled = !keyDraft.trim();
+});
+document.addEventListener('keydown', e => {
+  if (e.target.id === 'key' && e.key === 'Enter' && keyDraft.trim() && !busy) document.querySelector('[data-save]')?.click();
+  if (e.target.closest?.('nav') && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    const i = PANES.findIndex(p => p[0] === pane) + (e.key === 'ArrowDown' ? 1 : -1);
+    if (PANES[i]) { window.showPane(PANES[i][0]); document.querySelector(`[data-pane="${pane}"]`)?.focus(); }
+    e.preventDefault();
+  }
+});
+
+window.showPane(location.hash.slice(1));
+window.refresh();
+</script>
+</body>
+</html>

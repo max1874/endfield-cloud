@@ -1,6 +1,7 @@
+mod settings;
 mod update;
 
-use std::sync::{atomic::{AtomicBool, AtomicUsize, Ordering}, OnceLock};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
     webview::{NewWindowFeatures, NewWindowResponse, PageLoadEvent},
@@ -12,13 +13,9 @@ extern "C" {
     fn endfield_install_pointer_lock(webview: *mut std::ffi::c_void);
     fn endfield_keep_running_when_covered(webview: *mut std::ffi::c_void);
     fn endfield_configure_webrtc(webview: *mut std::ffi::c_void);
-    fn endfield_lock_viewport(webview: *mut std::ffi::c_void);
-    fn endfield_open_settings();
+    fn endfield_lock_viewport(webview: *mut std::ffi::c_void, saved: f64) -> f64;
     fn endfield_install_engine(webview: *mut std::ffi::c_void, source: *const std::ffi::c_char);
     fn endfield_engine_command(webview: *mut std::ffi::c_void, command: *const std::ffi::c_char);
-    fn endfield_set_muted(webview: *mut std::ffi::c_void, muted: bool) -> std::ffi::c_ulong;
-    fn endfield_assist_has_key() -> bool;
-    fn endfield_assist_edit_key();
     #[cfg(debug_assertions)]
     fn endfield_dev_eval(
         webview: *mut std::ffi::c_void,
@@ -99,9 +96,6 @@ const ENGINE_MENU_TASKS: &[(&str, &str)] = &[
     ("eco_farm", "运行：生态农场 · 存仓"),
 ];
 
-// 游戏 → 静音: the game page's audio, muted for the whole app run (native/audio.m).
-static MUTED: AtomicBool = AtomicBool::new(false);
-
 // The automation engine (native/engine/), bundled with its templates by build.rs.
 #[cfg(target_os = "macos")]
 const ENGINE_SOURCE: &str = include_str!(concat!(env!("OUT_DIR"), "/engine.js"));
@@ -113,26 +107,6 @@ fn engine_command(window: &WebviewWindow, command: &str) -> tauri::Result<()> {
     window.with_webview(move |webview| unsafe {
         endfield_engine_command(webview.inner(), command.as_ptr());
     })
-}
-
-// 自动化 → 模型兜底: the key item opens the key dialog (native/engine.m) and says
-// whether a key is set.
-static ASSIST_KEY_ITEM: OnceLock<MenuItem<tauri::Wry>> = OnceLock::new();
-
-fn assist_key_label() -> &'static str {
-    #[cfg(target_os = "macos")]
-    let has_key = unsafe { endfield_assist_has_key() };
-    #[cfg(not(target_os = "macos"))]
-    let has_key = false;
-    if has_key { "模型兜底：DeepSeek Key 已设置…" } else { "模型兜底：设置 DeepSeek Key…" }
-}
-
-// Called by the key dialog after it saves or clears the key.
-#[no_mangle]
-pub extern "C" fn endfield_assist_key_changed() {
-    if let Some(Err(error)) = ASSIST_KEY_ITEM.get().map(|item| item.set_text(assist_key_label())) {
-        eprintln!("assist menu_failed {error}");
-    }
 }
 
 // Only record the origin: authentication query strings and fragments stay out of logs.
@@ -162,6 +136,7 @@ fn create_window(
                 if let Err(error) = engine_command(&window, "void 0") {
                     eprintln!("engine_inject_failed: {error}");
                 }
+                settings::apply_sensitivity(window.app_handle());
                 update::notify_ready(window.app_handle());
             }
         })
@@ -196,15 +171,20 @@ fn create_window(
     let window = builder.build()?;
     #[cfg(target_os = "macos")]
     if label == "game" {
-        window.with_webview(|webview| unsafe {
+        let saved = settings::get(app);
+        window.with_webview(move |webview| unsafe {
             // Tauri invokes this closure on WKWebView's owning thread.
             endfield_install_pointer_lock(webview.inner());
             endfield_keep_running_when_covered(webview.inner());
             endfield_configure_webrtc(webview.inner());
-            endfield_lock_viewport(webview.inner());
+            endfield_lock_viewport(webview.inner(), saved.window_width);
+            if saved.fullscreen { settings::apply_fullscreen(true); }
             let source = std::ffi::CString::new(ENGINE_SOURCE).expect("engine source has no NUL");
             endfield_install_engine(webview.inner(), source.as_ptr());
         })?;
+        if saved.muted {
+            settings::apply_muted(app, true);
+        }
     }
     Ok(window)
 }
@@ -224,25 +204,18 @@ fn main() {
                 true,
                 Some("Ctrl+Cmd+F"),
             )?;
+            settings::load(app.handle())?;
             let mute = CheckMenuItem::with_id(app, "mute", "静音", true, false, Some("CmdOrCtrl+Shift+M"))?;
             app.manage(mute.clone());
             let check_update = MenuItem::with_id(app, "update-check", "检查更新", true, None::<&str>)?;
             let install_update = MenuItem::with_id(app, "update-install", "重启并更新", false, None::<&str>)?;
             update::setup(app.handle(), check_update.clone(), install_update.clone());
-            let settings = MenuItem::with_id(app, "settings", "设置…", true, Some("CmdOrCtrl+,"))?;
+            let settings = MenuItem::with_id(app, "settings:", "设置…", true, Some("CmdOrCtrl+,"))?;
             // Under About in the app menu, where macOS apps keep their updates and Settings.
             if let Some(app_menu) = menu.items()?.first().and_then(|item| item.as_submenu()) {
                 app_menu.insert_items(&[&check_update, &install_update, &PredefinedMenuItem::separator(app)?, &settings], 1)?;
             }
-            let sensitivity_1 = MenuItem::with_id(app, "sensitivity-1", "鼠标灵敏度 1×", true, None::<&str>)?;
-            let sensitivity_2 = MenuItem::with_id(app, "sensitivity-2", "鼠标灵敏度 2×", true, None::<&str>)?;
-            let sensitivity_4 = MenuItem::with_id(app, "sensitivity-4", "鼠标灵敏度 4×", true, None::<&str>)?;
-            let sensitivity_8 = MenuItem::with_id(app, "sensitivity-8", "鼠标灵敏度 8×（默认）", true, None::<&str>)?;
-            let sensitivity_16 = MenuItem::with_id(app, "sensitivity-16", "鼠标灵敏度 16×", true, None::<&str>)?;
-            menu.append(&Submenu::with_items(
-                app, "游戏", true,
-                &[&reload, &home, &fullscreen, &mute, &sensitivity_1, &sensitivity_2, &sensitivity_4, &sensitivity_8, &sensitivity_16],
-            )?)?;
+            menu.append(&Submenu::with_items(app, "游戏", true, &[&reload, &home, &fullscreen, &mute])?)?;
             let automation = Submenu::new(app, "自动化", true)?;
             automation.append(&MenuItem::with_id(app, "engine-run-daily", "运行：每日全部", true, None::<&str>)?)?;
             automation.append(&PredefinedMenuItem::separator(app)?)?;
@@ -256,26 +229,45 @@ fn main() {
             automation.append(&MenuItem::with_id(app, "engine-resume", "继续运行", true, None::<&str>)?)?;
             automation.append(&MenuItem::with_id(app, "engine-stop", "结束运行", true, Some("CmdOrCtrl+Shift+."))?)?;
             automation.append(&PredefinedMenuItem::separator(app)?)?;
-            // Model assist (native/engine/core.js) runs on the user's own DeepSeek key.
-            let assist_key = MenuItem::with_id(app, "assist-key", assist_key_label(), true, None::<&str>)?;
-            let _ = ASSIST_KEY_ITEM.set(assist_key.clone());
-            automation.append(&assist_key)?;
+            // Model assist (native/engine/core.js) runs on the user's own DeepSeek key,
+            // entered in Settings.
+            automation.append(&MenuItem::with_id(app, "settings:automation", "每日全部的任务…", true, None::<&str>)?)?;
+            automation.append(&MenuItem::with_id(app, "settings:assist", "模型兜底设置…", true, None::<&str>)?)?;
             automation.append(&MenuItem::with_id(app, "assist-check", "模型兜底：自检", true, None::<&str>)?)?;
             menu.append(&automation)?;
             app.set_menu(menu)?;
             create_window(app.handle(), "game", CLOUD_URL.parse()?, None)?;
             #[cfg(all(target_os = "macos", debug_assertions))]
             spawn_dev_inbox(app.handle().clone())?;
+            // Debug builds: open Settings at launch without taking focus, for screenshots.
+            #[cfg(all(target_os = "macos", debug_assertions))]
+            if let Ok(pane) = std::env::var("ENDFIELD_OPEN_SETTINGS") {
+                settings::open(app.handle(), &pane, false);
+            }
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            settings::settings_get,
+            settings::settings_set,
+            settings::settings_action,
+            settings::assist_save_key,
+        ])
         .on_menu_event(|app, event| {
             match event.id().as_ref() {
                 "update-check" => { update::check_now(app); return; }
                 "update-install" => { update::request_install(app); return; }
-                #[cfg(target_os = "macos")]
-                "assist-key" => { unsafe { endfield_assist_edit_key() }; return; }
-                #[cfg(target_os = "macos")]
-                "settings" => { unsafe { endfield_open_settings() }; return; }
+                // Always the game window, letterboxed at 16:9 (native/viewport.m).
+                "fullscreen" => { settings::apply_fullscreen(!settings::get(app).fullscreen); return; }
+                id if id.starts_with("settings:") => { settings::open(app, &id["settings:".len()..], true); return; }
+                "mute" => {
+                    // The stored setting drives the check mark, whether the click or the
+                    // shortcut toggled it. `set` waits on the main thread, so leave it.
+                    let (app, muted) = (app.clone(), !settings::get(app).muted);
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(error) = settings::set(&app, "muted", &muted.into()) { eprintln!("menu_action_failed: {error}"); }
+                    });
+                    return;
+                }
                 _ => {}
             }
             let windows = app.webview_windows();
@@ -285,33 +277,12 @@ fn main() {
                 .or_else(|| windows.get("game"));
             let Some(window) = current else { return };
             let result = match event.id().as_ref() {
-                "sensitivity-1" | "sensitivity-2" | "sensitivity-4" | "sensitivity-8" | "sensitivity-16" => {
-                    let value = event.id().as_ref().trim_start_matches("sensitivity-");
-                    if let Some(game) = windows.get("game") {
-                        game.eval(format!("window.__endfieldSetMouseSensitivity?.({value})"))
-                    } else {
-                        Ok(())
-                    }
-                }
-                #[cfg(target_os = "macos")]
-                "mute" => {
-                    // Our own flag drives the check mark, whether the click or the
-                    // shortcut toggled it.
-                    let muted = !MUTED.fetch_xor(true, Ordering::Relaxed);
-                    let item = app.state::<CheckMenuItem<tauri::Wry>>();
-                    item.set_checked(muted).and_then(|()| match windows.get("game") {
-                        Some(game) => game.with_webview(move |webview| unsafe {
-                            endfield_set_muted(webview.inner(), muted);
-                        }),
-                        None => Ok(()),
-                    })
-                }
                 #[cfg(target_os = "macos")]
                 id if matches!(id, "engine-stop" | "engine-pause" | "engine-resume" | "engine-run-daily" | "assist-check") || id.starts_with("engine-run:") => {
                     // Task ids come from DAILY_TASKS and ENGINE_MENU_TASKS, never from the page.
                     // A run starts the cloud session when none is playing, and exits only that one.
                     let command = if id == "engine-run-daily" {
-                        format!("window.__engine.run({DAILY_TASKS:?}, {{ session: 'auto' }})")
+                        format!("window.__engine.run({:?}, {{ session: 'auto' }})", settings::daily(app))
                     } else if id == "engine-pause" {
                         "window.__engine.pause('take_over')".to_string()
                     } else if id == "engine-resume" {
@@ -331,9 +302,6 @@ fn main() {
                 }
                 "reload" => window.reload(),
                 "home" => window.navigate(CLOUD_URL.parse().expect("valid cloud URL")),
-                "fullscreen" => window
-                    .is_fullscreen()
-                    .and_then(|fullscreen| window.set_fullscreen(!fullscreen)),
                 _ => return,
             };
             if let Err(error) = result {

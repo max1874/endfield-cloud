@@ -35,6 +35,7 @@ impl Updates {
         if let Err(error) = self.check.set_text(text) {
             eprintln!("update menu_failed {error}");
         }
+        if let Some(app) = APP.get() { crate::settings::refresh(app); }
     }
 }
 
@@ -283,4 +284,17 @@ pub fn on_exit(app: &AppHandle) {
     if let Some(Err(error)) = &state.install_result {
         eprintln!("update install_failed on_exit {error}");
     }
+}
+
+/// What the 检查更新 menu item says in its parentheses, for the Settings page; empty
+/// before the first check. `ready` is whether 重启并更新 is offered.
+pub fn status(app: &AppHandle) -> serde_json::Value {
+    let updates = app.state::<Updates>();
+    let label = updates.check.text().unwrap_or_default();
+    let detail = label.split_once('（').map_or("", |(_, rest)| rest.trim_end_matches('）'));
+    serde_json::json!({
+        "debug": cfg!(debug_assertions),
+        "detail": detail,
+        "ready": updates.install.is_enabled().unwrap_or(false),
+    })
 }

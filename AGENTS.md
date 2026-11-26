@@ -90,6 +90,15 @@ with its source. The only one in use left with 赠送干员礼物 (removed 2026-
   `NAME.js` runs in the game page as an async function body and its result lands in
   `dev-outbox/NAME.json` (or `NAME.png` for a PNG data URL). Use it to drive input
   and recognition experiments from a shell. Release builds never poll the inbox.
+  Launched with `ENDFIELD_OPEN_SETTINGS=<pane>` (`open --env`), a debug build opens
+  Settings on that pane without taking focus, for screenshots; a window covered by
+  others stays blank, because WebKit does not paint it.
+- 云终末地设置 (App menu → 设置…, Cmd+,; Max 2026-11-26) is `frontend/settings.html`
+  over `src/settings.rs`, styled after the official site's visual language with none
+  of its artwork. Settings live in `settings.json` beside `automation/`: window size,
+  full screen, mouse sensitivity, mute and the tasks 每日全部 runs. The DeepSeek Key
+  stays in its own file. Menus and the page change settings only through
+  `settings::set`; its commands answer only the `settings` window.
 
 ## Automation engine
 
@@ -112,7 +121,7 @@ with its source. The only one in use left with 赠送干员礼物 (removed 2026-
   session, runs the tasks and exits the session.
 - Model assist (Max 2026-10-30): when Vision misses a label or cannot settle a number,
   `E.findText(..., { assist })` and `E.readNumber(..., { assist: true })` ask DeepSeek's
-  vision model, on the key the user enters in the 自动化 → 模型兜底 dialog (checked
+  vision model, on the key the user enters in Settings → 模型兜底 (checked
   against DeepSeek's free `/user/balance` before saving, stored as `deepseek-key`
   beside `automation/`; the app never reads the agents' key store).
   It only reads and finds: never an action choice, never a read that a purchase,
@@ -134,7 +143,8 @@ The window is not drag-resizable; 云终末地设置 (Cmd+,, `native/viewport.m`
 1280×720 (Max 2026-11-26; 1600×900 ran 自检, 邮件, 简制手册 the same as 1280×720).
 Recognition coordinates are normalized to that frame and templates are its pixels:
 `E.checkLayout` blocks a run unless the viewport is 16:9 and the stream 1920×1080
-(fullscreen on a 16:10 display changes the layout).
+Full screen keeps the page 16:9: `native/viewport.m` centres the web view at the
+largest 16:9 size with black bars, so a 16:10 display gets the same layout.
 
 ## Input facts (measured 2026-10-21, synthetic DOM events on `#WelinkGameVideo`)
 
