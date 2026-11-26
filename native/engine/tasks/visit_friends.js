@@ -18,6 +18,7 @@
   const BALANCE_AT = [0.85, 0, 0.12, 0.07];
   const BUTTONS = [0.12, 0.79, 0.78, 0.06];
   const COUNT = /(\d+)\s*\/\s*(\d+)/;
+  const NEXT_AT = [0.75, 0.12, 0.25, 0.07];
 
   E.screen('friends', look => look.has(/好友列表$/, [0, 0, 0.2, 0.07]), 72);
   // The dialog grows with the 交流项目 it lists; its title moves with it.
@@ -144,9 +145,17 @@
           await E.key('KeyY');
           const left = await useTerminal(t, name, i);
           if (left.clue === 0 && left.assist === 0) break;
+          // The last friend shows 暂无下位可拜访 and Tab does nothing (run 20261126-120652-waqu).
+          const here = await E.look();
+          if (await E.findText(here, /暂无下位/, NEXT_AT)) { t.note(`${name} is the last friend: every friend visited`); break; }
           await E.key('Tab');
           // The next friend's ship: the guest screen with another name.
-          look = await E.waitFor('guest', { timeout: 90000, onLook: async l => { if (l.screen === 'guest' && await friend(l) === name) l.screen = 'same_friend'; } });
+          look = await E.waitFor('guest', { timeout: 90000, onLook: async l => { if (l.screen === 'guest' && await friend(l) === name) l.screen = 'same_friend'; } })
+            .catch(error => {
+              if (error?.kind !== 'timeout' || error.detail?.look?.screen !== 'same_friend') throw error;
+              return null;
+            });
+          if (!look) { t.note(`Tab left ${name} shown: every friend visited`); break; }
         }
       } catch (error) {
         await endVisit().catch(e => E.log(`visit_friends end_visit_failed ${e.message}`));

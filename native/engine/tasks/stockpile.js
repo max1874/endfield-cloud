@@ -18,7 +18,9 @@
   const OWNED = [0.27, 0.558, 0.05, 0.032];
   const QUANTITY = [0.29, 0.675, 0.05, 0.05];
   const MAX_LABEL = [0.53, 0.68, 0.035, 0.04];
-  const TOTAL = [0.757, 0.675, 0.075, 0.05]; // starts right of the currency icon
+  // Starts right of the currency icon, which ends at x 1433; a seven-digit total
+  // (1296960, run 20261126-122630-9n3t) begins at 1445, left of the old 0.757 edge.
+  const TOTAL = [0.749, 0.675, 0.085, 0.05];
   const BALANCE = [0.86, 0.02, 0.085, 0.045];
   const SLIDER = [px(798, 755), px(1012, 755)];
   const MINUS = px(722, 755), PLUS = px(1109, 755);
@@ -92,7 +94,14 @@
         return error.detail.look;
       });
     }
-    const dialog = await readDialog(look);
+    // The price misread on single frames of a shown dialog (run 20261126-124310-xjwf:
+    // 1351 read on one run, null on the next), so an unread price is read again.
+    let dialog = await readDialog(look);
+    for (let i = 0; i < 3 && dialog.price === null; i++) {
+      await E.sleep(500);
+      look = await E.look();
+      dialog = await readDialog(look);
+    }
     if (!E.sameName(dialog.name, card.name)) E.fail(`opened_${dialog.name}_not_${card.name}`);
     return { look, dialog };
   }
