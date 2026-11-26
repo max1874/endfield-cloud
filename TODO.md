@@ -7,6 +7,19 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 
 ## Follow-ups
 
+### Settings paths that have not run in front — added 2026-11-26
+
+- **Trigger:** Max uses v0.2.25 (or allows a foreground test window).
+- **Seen so far:** in the background on a debug build, the page's window size,
+  sensitivity, mute and 每日全部 selection applied and saved; at 1600×900 a live
+  session streamed 1920×1080 and `selftest` passed.
+- **Check:** full screen from the page and ⌃⌘F: the runtime log shows
+  `viewport fullscreen=1 page=WxH` at 16:9 with black bars, and a task run in full
+  screen passes `E.checkLayout`; ⌘, and 自动化 → 每日全部的任务… / 模型兜底设置… open
+  their panes; saving a key from the page shows its verdict; the Settings window
+  drags by its top strip; 每日全部 with a task unchecked skips it.
+- **Done when:** each is seen working once, or a failure gets its own item.
+
 ### 囤货: the 购买 toggle click pressed again — added 2026-11-03
 
 - **Trigger:** 每日全部 runs on the release that carries branch
