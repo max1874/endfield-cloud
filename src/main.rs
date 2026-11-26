@@ -164,10 +164,11 @@ fn create_window(
             .initialization_script(include_str!("../native/cloud_input.js"))
             .initialization_script(include_str!("../native/browser_tip.js"));
     }
+    // No builder centring: it lands after endfield_lock_viewport sizes and centres the
+    // game window, at the position centred for the default 1280x720, so a larger saved
+    // size ran off the screen.
     if let Some(features) = features {
         builder = builder.window_features(features);
-    } else {
-        builder = builder.center();
     }
     let window = builder.build()?;
     #[cfg(target_os = "macos")]
