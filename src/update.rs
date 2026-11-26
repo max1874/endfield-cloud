@@ -53,8 +53,9 @@ pub fn setup(app: &AppHandle, check: MenuItem<tauri::Wry>, install: MenuItem<tau
     }
     let app = app.clone();
     // Every 10 minutes, so a release shows its 重启更新 bar without a click on 检查更新
-    // (Max 2026-10-31; it took up to 6 h before). Each check fetches only latest.json,
-    // and none runs once an update is downloaded.
+    // (Max 2026-10-31; it took up to 6 h before). Each check fetches only latest.json; a
+    // newer release replaces one already downloaded (Max 2026-11-26: 0.2.25 held 0.2.26
+    // and never saw 0.2.27).
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_secs(30)).await;
         loop {
@@ -69,8 +70,8 @@ pub fn check_now(app: &AppHandle) {
     let updates = app.state::<Updates>();
     {
         let mut state = updates.state.lock().unwrap();
-        // Retain the verified download across checks; no duplicate download/prompt.
-        if state.downloaded.is_some() || state.checking || state.installing || state.installed || state.quitting {
+        // A verified download stays until a newer release replaces it.
+        if state.checking || state.installing || state.installed || state.quitting {
             return;
         }
         state.checking = true;
@@ -85,6 +86,8 @@ pub fn check_now(app: &AppHandle) {
 
 async fn check_and_download(app: &AppHandle) {
     let updates = app.state::<Updates>();
+    let ready = updates.state.lock().unwrap().downloaded.as_ref().map(|download| download.update.version.clone());
+    let ready_label = |version: &str| format!("检查更新（v{version} 已就绪）");
     let result = async {
         app.updater_builder().timeout(Duration::from_secs(120)).build()?.check().await
     }.await;
@@ -99,10 +102,14 @@ async fn check_and_download(app: &AppHandle) {
         }
         Err(error) => {
             eprintln!("update check_failed {error}");
-            updates.check_label("检查更新（检查失败，点击重试）");
+            updates.check_label(&ready.as_deref().map_or("检查更新（检查失败，点击重试）".into(), ready_label));
             return;
         }
     };
+    if ready.as_deref() == Some(update.version.as_str()) {
+        updates.check_label(&ready_label(&update.version));
+        return;
+    }
     // The plugin's default comparator only returns versions newer than ours.
     eprintln!("update available version={}", update.version);
     updates.check_label(&format!("检查更新（正在下载 v{}）", update.version));
@@ -112,10 +119,11 @@ async fn check_and_download(app: &AppHandle) {
             eprintln!("update downloaded version={version} bytes={}", bytes.len());
             {
                 let mut state = updates.state.lock().unwrap();
-                if state.quitting { return; }
+                // Never swap the download under a running or finished install.
+                if state.quitting || state.installing || state.installed { return; }
                 state.downloaded = Some(Downloaded { update, bytes });
             }
-            updates.check_label(&format!("检查更新（v{version} 已就绪）"));
+            updates.check_label(&ready_label(&version));
             if let Err(error) = updates.install.set_text(format!("重启并更新到 v{version}"))
                 .and_then(|()| updates.install.set_enabled(true)) {
                 eprintln!("update menu_failed {error}");
@@ -124,7 +132,7 @@ async fn check_and_download(app: &AppHandle) {
         }
         Err(error) => {
             eprintln!("update download_failed {error}");
-            updates.check_label("检查更新（下载失败，点击重试）");
+            updates.check_label(&ready.as_deref().map_or("检查更新（下载失败，点击重试）".into(), ready_label));
         }
     }
 }
