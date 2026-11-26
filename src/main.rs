@@ -161,7 +161,8 @@ fn create_window(
     if label == "game" {
         builder = builder.initialization_script(include_str!("../native/visibility.js"))
             .initialization_script(include_str!("../native/diagnostics.js"))
-            .initialization_script(include_str!("../native/cloud_input.js"));
+            .initialization_script(include_str!("../native/cloud_input.js"))
+            .initialization_script(include_str!("../native/browser_tip.js"));
     }
     if let Some(features) = features {
         builder = builder.window_features(features);
