@@ -29,7 +29,7 @@ static NSURL *AutomationRoot(void) {
     return [[base URLByAppendingPathComponent:@"local.endfield.cloud.prototype/automation" isDirectory:YES] URLByStandardizingPath];
 }
 
-// The user's own DeepSeek key for model assist (core.js), set from 自动化 → 模型兜底.
+// The user's own DeepSeek key for model assist (core.js), set in Settings (src/settings.rs).
 // It sits beside the automation root, outside any path the engine can save or load.
 static NSURL *AssistKeyURL(void) {
     return [AutomationRoot().URLByDeletingLastPathComponent URLByAppendingPathComponent:@"deepseek-key"];
@@ -47,21 +47,25 @@ static BOOL LooksLikeKey(NSString *key) {
     return key && [key rangeOfString:@"^sk-[A-Za-z0-9]{20,}$" options:NSRegularExpressionSearch].location != NSNotFound;
 }
 
-bool endfield_assist_has_key(void) { return AssistKey().length > 0; }
-
-// Refreshes the menu item's label (src/main.rs).
-extern void endfield_assist_key_changed(void);
-
-static void ShowNotice(NSString *title, NSString *text) {
-    NSAlert *alert = [NSAlert new];
-    alert.messageText = title;
-    alert.informativeText = text;
-    [alert runModal];
+// The key's last four characters, or "" when none is set; for the Settings page.
+void endfield_assist_key_tail(char out[8]) {
+    NSString *key = AssistKey();
+    snprintf(out, 8, "%s", key.length >= 4 ? [key substringFromIndex:key.length - 4].UTF8String : "");
 }
 
-// Save `key` once DeepSeek accepts it. /user/balance costs nothing and also tells
-// whether the account can pay for calls.
-static void VerifyAndSave(NSString *key) {
+void endfield_assist_clear_key(void) {
+    [NSFileManager.defaultManager removeItemAtURL:AssistKeyURL() error:nil];
+}
+
+// Save a key from Settings once DeepSeek accepts it. /user/balance costs nothing and also
+// tells whether the account can pay for calls. `done` gets {saved, title, detail} as JSON.
+void endfield_assist_save_key(const char *rawKey, void *context, void (*done)(void *, const char *)) {
+    NSString *key = Trimmed([NSString stringWithUTF8String:rawKey]);
+    void (^finish)(BOOL, NSString *, NSString *) = ^(BOOL saved, NSString *title, NSString *detail) {
+        NSData *json = [NSJSONSerialization dataWithJSONObject:@{@"saved": @(saved), @"title": title, @"detail": detail} options:0 error:nil];
+        done(context, [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding].UTF8String);
+    };
+    if (!LooksLikeKey(key)) { finish(NO, @"这不是 DeepSeek Key", @"DeepSeek 的 Key 以 sk- 开头，没有保存。"); return; }
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:@"https://api.deepseek.com/user/balance"]];
     request.timeoutInterval = 15;
     [request setValue:[@"Bearer " stringByAppendingString:key] forHTTPHeaderField:@"Authorization"];
@@ -71,54 +75,20 @@ static void VerifyAndSave(NSString *key) {
         if (![json isKindOfClass:NSDictionary.class]) json = nil;
         id balances = json[@"balance_infos"];
         id first = [balances isKindOfClass:NSArray.class] && [balances count] ? balances[0] : nil;
-        NSString *balance = [first isKindOfClass:NSDictionary.class] ? [NSString stringWithFormat:@"%@ %@", first[@"total_balance"], first[@"currency"]] : nil;
+        NSString *balance = [first isKindOfClass:NSDictionary.class] ? [NSString stringWithFormat:@"%@ %@", first[@"total_balance"], first[@"currency"]] : @"未知";
         BOOL available = [json[@"is_available"] isKindOfClass:NSNumber.class] && [json[@"is_available"] boolValue];
         fprintf(stderr, "assist key_check status=%ld\n", status);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (status == 401 || status == 403) {
-                ShowNotice(@"这个 Key 不能用", @"DeepSeek 拒绝了这个 Key，没有保存。请到 platform.deepseek.com → API Keys 重新复制。");
-                return;
-            }
-            [NSFileManager.defaultManager createFileAtPath:AssistKeyURL().path contents:[key dataUsingEncoding:NSUTF8StringEncoding]
-                                                attributes:@{NSFilePosixPermissions: @0600}];
-            endfield_assist_key_changed();
-            if (status != 200) ShowNotice(@"Key 已保存，但没能验证", [NSString stringWithFormat:@"现在连不上 DeepSeek（%@），之后可以用「模型兜底：自检」再确认。",
-                                                                    error ? error.localizedDescription : [NSString stringWithFormat:@"HTTP %ld", status]]);
-            else if (!available) ShowNotice(@"Key 已保存，但余额不足", [NSString stringWithFormat:@"账户余额 %@，模型协助会失败，充值后即可使用。", balance ?: @"未知"]);
-            else ShowNotice(@"Key 已保存", [NSString stringWithFormat:@"已验证可用，账户余额 %@。", balance ?: @"未知"]);
-        });
-    }] resume];
-}
-
-// 自动化 → 模型兜底: a dialog to paste, replace or clear the key.
-void endfield_assist_edit_key(void) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSString *current = AssistKey();
-        NSAlert *alert = [NSAlert new];
-        alert.messageText = @"模型兜底 · DeepSeek Key";
-        alert.informativeText = [NSString stringWithFormat:
-            @"Vision 认不出按钮或读不准数字时，用你自己的 DeepSeek Key 请模型帮忙看（只读字、找位置，不替你做选择，费用记在你的 DeepSeek 账户）。\n\n"
-            @"在 platform.deepseek.com → API Keys 新建一个 Key，复制后粘贴到下面。\n\n当前：%@",
-            current.length ? [NSString stringWithFormat:@"已设置（…%@）", [current substringFromIndex:MAX(0, (NSInteger)current.length - 4)]] : @"未设置"];
-        NSSecureTextField *field = [[NSSecureTextField alloc] initWithFrame:NSMakeRect(0, 0, 320, 24)];
-        field.placeholderString = @"sk-…";
-        NSString *clipboard = Trimmed([NSPasteboard.generalPasteboard stringForType:NSPasteboardTypeString]);
-        if (LooksLikeKey(clipboard) && ![clipboard isEqualToString:current]) field.stringValue = clipboard;
-        alert.accessoryView = field;
-        [alert addButtonWithTitle:@"保存"];
-        [alert addButtonWithTitle:@"取消"];
-        if (current.length) [alert addButtonWithTitle:@"清除 Key"];
-        alert.window.initialFirstResponder = field;
-        NSModalResponse response = [alert runModal];
-        if (response == NSAlertThirdButtonReturn) {
-            [NSFileManager.defaultManager removeItemAtURL:AssistKeyURL() error:nil];
-            endfield_assist_key_changed();
-        } else if (response == NSAlertFirstButtonReturn) {
-            NSString *key = Trimmed(field.stringValue);
-            if (LooksLikeKey(key)) VerifyAndSave(key);
-            else ShowNotice(@"这不是 DeepSeek Key", @"DeepSeek 的 Key 以 sk- 开头。没有保存。");
+        if (status == 401 || status == 403) {
+            finish(NO, @"这个 Key 不能用", @"DeepSeek 拒绝了这个 Key，没有保存。请到 platform.deepseek.com → API Keys 重新复制。");
+            return;
         }
-    });
+        [NSFileManager.defaultManager createFileAtPath:AssistKeyURL().path contents:[key dataUsingEncoding:NSUTF8StringEncoding]
+                                            attributes:@{NSFilePosixPermissions: @0600}];
+        if (status != 200) finish(YES, @"已保存，但没能验证", [NSString stringWithFormat:@"现在连不上 DeepSeek（%@），之后可以用「自检」再确认。",
+                                                              error ? error.localizedDescription : [NSString stringWithFormat:@"HTTP %ld", status]]);
+        else if (!available) finish(YES, @"已保存，但余额不足", [NSString stringWithFormat:@"账户余额 %@，模型协助会失败，充值后即可使用。", balance]);
+        else finish(YES, @"已保存", [NSString stringWithFormat:@"已验证可用，账户余额 %@。", balance]);
+    }] resume];
 }
 
 // One question about one image to DeepSeek's vision model; replies with its answer text.

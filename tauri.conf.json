@@ -10,7 +10,14 @@
     "windows": [],
     "withGlobalTauri": false,
     "security": {
-      "capabilities": []
+      "capabilities": [
+        {
+          "identifier": "settings-window",
+          "description": "The Settings page may only move its own window; its commands check the window label.",
+          "windows": ["settings"],
+          "permissions": ["core:window:allow-start-dragging"]
+        }
+      ]
     }
   },
   "bundle": {
