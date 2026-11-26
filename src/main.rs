@@ -13,6 +13,7 @@ extern "C" {
     fn endfield_keep_running_when_covered(webview: *mut std::ffi::c_void);
     fn endfield_configure_webrtc(webview: *mut std::ffi::c_void);
     fn endfield_lock_viewport(webview: *mut std::ffi::c_void);
+    fn endfield_open_settings();
     fn endfield_install_engine(webview: *mut std::ffi::c_void, source: *const std::ffi::c_char);
     fn endfield_engine_command(webview: *mut std::ffi::c_void, command: *const std::ffi::c_char);
     fn endfield_set_muted(webview: *mut std::ffi::c_void, muted: bool) -> std::ffi::c_ulong;
@@ -228,9 +229,10 @@ fn main() {
             let check_update = MenuItem::with_id(app, "update-check", "检查更新", true, None::<&str>)?;
             let install_update = MenuItem::with_id(app, "update-install", "重启并更新", false, None::<&str>)?;
             update::setup(app.handle(), check_update.clone(), install_update.clone());
-            // Under About in the app menu, where macOS apps keep their updates.
+            let settings = MenuItem::with_id(app, "settings", "设置…", true, Some("CmdOrCtrl+,"))?;
+            // Under About in the app menu, where macOS apps keep their updates and Settings.
             if let Some(app_menu) = menu.items()?.first().and_then(|item| item.as_submenu()) {
-                app_menu.insert_items(&[&check_update, &install_update], 1)?;
+                app_menu.insert_items(&[&check_update, &install_update, &PredefinedMenuItem::separator(app)?, &settings], 1)?;
             }
             let sensitivity_1 = MenuItem::with_id(app, "sensitivity-1", "鼠标灵敏度 1×", true, None::<&str>)?;
             let sensitivity_2 = MenuItem::with_id(app, "sensitivity-2", "鼠标灵敏度 2×", true, None::<&str>)?;
@@ -272,6 +274,8 @@ fn main() {
                 "update-install" => { update::request_install(app); return; }
                 #[cfg(target_os = "macos")]
                 "assist-key" => { unsafe { endfield_assist_edit_key() }; return; }
+                #[cfg(target_os = "macos")]
+                "settings" => { unsafe { endfield_open_settings() }; return; }
                 _ => {}
             }
             let windows = app.webview_windows();

@@ -2,8 +2,9 @@
 // it shares the DOM with the cloud page, so input events dispatched on the video element
 // reach the SDK, while page scripts cannot reach the engine.
 //
-// Coordinates are normalized to the video frame (0..1). The viewport is locked to
-// 1280x720 (native/viewport.m), so the game's layout is fixed; see AGENTS.md.
+// Coordinates are normalized to the video frame (0..1). The viewport is held at a 16:9
+// size whose stream is the server's 1920x1080 cap (native/viewport.m), so the game's
+// layout is fixed; see AGENTS.md.
 (() => {
   if (window.top !== window || location.origin !== 'https://endfield.hypergryph.com' ||
       !/^\/cloud(?:\/|$)/.test(location.pathname) || window.__engine) return;
@@ -62,10 +63,12 @@
       throw new EngineError('failed', 'stream_not_ready');
     return v;
   };
-  // Recognition assumes the locked layout; refuse to act in any other one.
+  // Templates and regions are pixels of a 1920x1080 frame laid out for a 16:9 viewport;
+  // refuse to act in any other layout (full screen on a 16:10 display, a small window
+  // on a 1x display).
   E.checkLayout = () => {
     const v = E.video();
-    if (innerWidth !== 1280 || innerHeight !== 720 || Math.abs(v.videoWidth / v.videoHeight - 16 / 9) > 0.01)
+    if (Math.abs(innerWidth / innerHeight - 16 / 9) > 0.01 || v.videoWidth !== 1920 || v.videoHeight !== 1080)
       E.block(`layout_${innerWidth}x${innerHeight}_video_${v.videoWidth}x${v.videoHeight}`);
   };
 

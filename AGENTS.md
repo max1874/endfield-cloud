@@ -125,13 +125,16 @@ with its source. The only one in use left with 赠送干员礼物 (removed 2026-
 
 The cloud SDK asks the server for a game resolution of the page viewport times
 `devicePixelRatio` and resends it on every resize, so the game's layout follows
-our window. `native/viewport.m` fixes the page viewport at 1280×720 (window not
-resizable); on a 2× display the stream is 1920×1080. The server caps the stream at
-1920×1080 (measured 2026-11-26 by overriding `devicePixelRatio`): requests of
-2560×1440 (our normal 2× request), 3200×1800, 3840×2160 and 5120×2880 all came back
-1920×1080, while 1280×720 and 960×540 were followed exactly. Recognition coordinates are
-normalized to that 16:9 frame. Anything that changes the viewport (fullscreen)
-changes the layout; automation must check the viewport before acting.
+our window. The server caps the stream at 1920×1080 (measured 2026-11-26 by
+overriding `devicePixelRatio`): requests of 2560×1440, 3200×1800, 3840×2160 and
+5120×2880 all came back 1920×1080, while 1280×720 and 960×540 were followed exactly.
+So every 16:9 viewport whose request reaches the cap gets the same frame and layout.
+The window is not drag-resizable; 云终末地设置 (Cmd+,, `native/viewport.m`) offers
+16:9 sizes from 960×540 to 2560×1440 that fit the screen and reach the cap, default
+1280×720 (Max 2026-11-26; 1600×900 ran 自检, 邮件, 简制手册 the same as 1280×720).
+Recognition coordinates are normalized to that frame and templates are its pixels:
+`E.checkLayout` blocks a run unless the viewport is 16:9 and the stream 1920×1080
+(fullscreen on a 16:10 display changes the layout).
 
 ## Input facts (measured 2026-10-21, synthetic DOM events on `#WelinkGameVideo`)
 
