@@ -19,7 +19,11 @@
       let look = await E.waitFor('mailbox', { timeout: 10000 });
       const before = await t.save(look.frame, 'mailbox-before');
       const button = await E.findText(look, /^全部收取$/, CLAIM_ALL, { assist: true });
-      if (!button) E.fail('mailbox_without_全部收取');
+      if (!button) {
+        // An empty inbox shows 暂无新邮件 and no 全部收取 (run 20261126-120652-waqu).
+        if (await E.findText(look, /暂无新邮件/, [0.35, 0.4, 0.3, 0.15])) return t.skip('暂无新邮件: nothing to claim');
+        E.fail('mailbox_without_全部收取');
+      }
       await E.click(...E.center(button));
       let reward = null;
       try { reward = await E.waitFor('reward', { timeout: 4000 }); } catch (error) { if (error.kind !== 'timeout') throw error; }

@@ -21,7 +21,11 @@
   const sendButton = i => px(1777, 219 + 156 * i);
   const CREDITS = /(\d+)\s*\/\s*300/;
 
-  E.screen('reception', look => look.has(/会客室$/, [0, 0, 0.2, 0.07]) && look.has('线索库', SIDE), 75);
+  // Full-frame OCR misses the side buttons over the purple board on some frames
+  // (run 20261126-120652-waqu timed out on a shown 会客室), so any of them, or the
+  // left panel's labels, confirm the title.
+  E.screen('reception', look => look.has(/会客室$/, [0, 0, 0.2, 0.07]) &&
+    (look.has(/^(收集|接收|赠予|线索库)$/, SIDE) || look.has(/已进驻干员|设施详情/, [0, 0.2, 0.3, 0.15])), 75);
   E.screen('clue_send', look => look.has('赠予自有线索', [0.05, 0, 0.25, 0.07]), 76);
   // After a 线索交流 ends, entering 会客室 first shows its result: 额外奖励 信用 N, the
   // friends who joined, and 确认 (2026-10-22 16:52).
@@ -44,7 +48,8 @@
   // "1" in the tight digits crop (run 20261029-203335-p99c: 0 of 6 votes) but reads it on
   // the whole "自有库存 N" line, so that line is the fallback.
   const readStockLine = async (frame, name) => {
-    for (const scale of [2, 1]) {
+    // 众生长地 2 read as unread once (run 20261126-124310-xjwf) and fine on a replay.
+    for (const scale of [2, 1, 3]) {
       const texts = await E.ocr(frame, [name.x - 0.006, name.y + 0.055, 0.165, 0.04], { scale });
       const hit = texts.find(t => /^\d+$/.test(t.text.trim()) && E.center(t)[0] > name.x + 0.1);
       if (hit) return Number(hit.text.trim());
@@ -81,9 +86,11 @@
   // selected clue, its last one (2026-10-23), so 赠予 waits until the card shows selected.
   async function giveOne(t, card, index) {
     let look = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    // After the list's scrollbar is dragged, clicks on a card can be lost several times
+    // in a row (run 20261126-122630-9n3t: 3 lost; a replay took 4 clicks), so keep trying.
+    for (let attempt = 0; attempt < 6; attempt++) {
       await E.click(...card.at);
-      await E.park({ at: [0.5, 0.03], settle: 1200 });
+      await E.park({ at: [0.5, 0.03], settle: 1200 + 400 * attempt });
       look = await E.look();
       if (selected(look.frame, card)) break;
       look = null;
@@ -139,7 +146,9 @@
       look = await E.look();
       await t.save(look.frame, `stock-${part}`);
       for (let card of await readStock(look)) {
-        if (seen.has(card.name)) continue;
+        // A card cut off at the bottom of the top view reads no stock; read it again
+        // on the scrolled view (众生长地 2 was never given, run 20261126-125101-kf2y).
+        if (seen.has(card.name) && seen.get(card.name) !== null) continue;
         seen.set(card.name, card.stock);
         while (card.stock !== null && card.stock > KEEP) {
           const paid = await giveOne(t, card, ++gifts);
@@ -168,7 +177,8 @@
       await t.save(look.frame, 'exchange-board-incomplete');
       return t.note('线索交流 needs all 7 clue types on the board');
     }
-    const start = await E.findText(look, /^开展交流$/, EXCHANGE_STATUS);
+    // OCR takes the button's line and icon along ("- 开展交流0", run 20261126-124310-xjwf).
+    const start = await E.findText(look, /开展交流/, EXCHANGE_STATUS);
     if (!start) {
       await t.save(look.frame, 'exchange-unavailable');
       E.fail('exchange_not_startable');

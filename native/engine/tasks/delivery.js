@@ -117,8 +117,12 @@
     await tab('本地仓储节点');
     await E.click(...E.center(button));
     // 货物装箱 opens the type choice; 查看报价 (box already full) goes to 调度申请.
-    let look = await until(l => l.has('选择装箱货物类型') || l.has('报价列表'), `${tag}_cargo`);
-    if (look.has('选择装箱货物类型')) {
+    // OCR reads the faint label as 选择装稍货物类型 and the breadcrumb as …/货物装
+    // (runs 20261126-120652-waqu, 20261126-122630-9n3t), so 箱 is not required.
+    const typeChoice = async l => l.has(/选择装.?货物类型/) ||
+      (!!await E.findText(l, /仓储节点.?货物装/, [0, 0, 0.3, 0.07]) && !!await E.findText(l, /下一步/, NEXT));
+    let look = await until(async l => l.has('报价列表') || await typeChoice(l), `${tag}_cargo`);
+    if (!look.has('报价列表')) {
       const next = await E.findText(look, /下一步/, NEXT, { assist: true });
       if (!next) E.fail(`${tag}_type_without_下一步`);
       await E.click(...E.center(next));

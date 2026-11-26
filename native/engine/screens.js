@@ -152,6 +152,19 @@
   // Menu → 地区建设 opens the last viewed region; the switch icon left of the region
   // name opens a picker with one card per region and 确认.
   E.screen('region', look => look.has('地区建设管理') && look.has('据点管理'), 74);
+  // A level-up shows 地区建设新内容解锁 over 地区建设 once; Esc closes it (run
+  // 20261126-120652-waqu timed out under it, the next task's navigation closed it).
+  E.screen('region_unlock', look => look.has(/新内容解锁/, [0.3, 0.27, 0.4, 0.1]), 76);
+  const regionShown = async () => {
+    for (let i = 0; i < 4; i++) {
+      const look = await E.waitFor(['region', 'region_unlock'], { timeout: 10000 });
+      if (look.screen === 'region') return look;
+      E.log('region unlock notice -> Escape');
+      await E.key('Escape');
+      await E.sleep(800);
+    }
+    E.fail('region_unlock_not_closed');
+  };
   const REGIONS = ['武陵', '四号谷地'];
   const REGION_NAME = [0.07, 0.23, 0.15, 0.08];
   const REGION_SWITCH = [92 / 1920, 318 / 1080];
@@ -163,9 +176,13 @@
     // On the 地区建设 screen: open the picker, choose `target`, confirm.
     async switchTo(target) {
       await E.click(...REGION_SWITCH);
-      await E.sleep(1200);
-      let look = await E.look();
-      const card = await E.findText(look, new RegExp(`${target}$`), [0.3, 0.28, 0.4, 0.06], { assist: target });
+      // The cards slide in; 1.2 s was too short once (run 20261126-120652-waqu).
+      let look = null, card = null;
+      for (let i = 0; i < 5 && !card; i++) {
+        await E.sleep(i ? 800 : 1200);
+        look = await E.look();
+        card = await E.findText(look, new RegExp(`${target}$`), [0.3, 0.26, 0.4, 0.1], i === 4 ? { assist: target } : undefined);
+      }
       if (!card) E.fail(`region_picker_without_${target}`);
       await E.click(...E.center(card));
       // The confirm dialog showed after more than 800 ms once (2026-10-23).
@@ -192,7 +209,7 @@
       const entry = await E.findText(menu, '地区建设', E.MENU_RIGHT, { assist: true });
       if (!entry) E.fail('menu_without_地区建设');
       await E.click(...E.center(entry));
-      let region = await E.waitFor('region', { timeout: 10000 });
+      let region = await regionShown();
       const first = await E.regions.name(region);
       if (!first) E.fail('region_name_unread');
       for (const name of [first, ...REGIONS.filter(r => r !== first)]) {
@@ -203,7 +220,7 @@
         await E.click(...E.center(button));
         await fn(name);
         await E.key('Escape');
-        region = await E.waitFor('region', { timeout: 10000 });
+        region = await regionShown();
       }
     }
   };

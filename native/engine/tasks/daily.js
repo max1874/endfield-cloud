@@ -91,8 +91,14 @@
         look = await E.waitFor('handbook');
         activity = await readActivity(look);
         const shown = await t.save(look.frame, 'tasks-claimed');
-        if (activity !== Math.min(100, activityBefore + expected))
+        // One press also claims completed rows below the visible list (run
+        // 20261126-120652-waqu: 4 rows ×20 showed, 活跃度 0 → 100), so a full list may
+        // add more than its visible rows did; never less.
+        const target = Math.min(100, activityBefore + expected);
+        const more = rows >= 4 && activity > target && activity <= 100;
+        if (activity !== target && !more)
           E.fail(`activity_not_reconciled_${activityBefore}+${expected}_read_${activity}`);
+        if (more) t.note(`活跃度 ${activityBefore}+${expected} read ${activity}: rows below the list were claimed too`);
         t.change({ what: '活跃度', before: activityBefore, after: activity, rows, frames: [before, shown] });
       }
 
