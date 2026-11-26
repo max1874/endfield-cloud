@@ -126,7 +126,10 @@ with its source. The only one in use left with 赠送干员礼物 (removed 2026-
 The cloud SDK asks the server for a game resolution of the page viewport times
 `devicePixelRatio` and resends it on every resize, so the game's layout follows
 our window. `native/viewport.m` fixes the page viewport at 1280×720 (window not
-resizable); on a 2× display the stream is 1920×1080. Recognition coordinates are
+resizable); on a 2× display the stream is 1920×1080. The server caps the stream at
+1920×1080 (measured 2026-11-26 by overriding `devicePixelRatio`): requests of
+2560×1440 (our normal 2× request), 3200×1800, 3840×2160 and 5120×2880 all came back
+1920×1080, while 1280×720 and 960×540 were followed exactly. Recognition coordinates are
 normalized to that 16:9 frame. Anything that changes the viewport (fullscreen)
 changes the layout; automation must check the viewport before acting.
 
