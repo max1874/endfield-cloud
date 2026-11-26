@@ -7,6 +7,13 @@ Delete an item once done. Task status itself lives in the `GOAL.md` ledger.
 
 ## Follow-ups
 
+### Updater replacing a held download — added 2026-11-26
+
+- **Trigger:** a release published while a 0.2.28+ app holds a downloaded update.
+- **Check:** within 10 minutes that app's 检查更新 says the newer version 已就绪 and
+  重启并更新 installs it (runtime log `update downloaded version=` twice).
+- **Done when:** seen once, or a failure gets its own item.
+
 ### Settings paths that have not run in front — added 2026-11-26
 
 - **Trigger:** Max uses v0.2.25 (or allows a foreground test window).
